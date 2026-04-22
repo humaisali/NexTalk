@@ -1,0 +1,91 @@
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { io } from 'socket.io-client';
+import { useAuth } from './AuthContext';
+
+const SocketContext = createContext(null);
+
+export const SocketProvider = ({ children }) => {
+  const { token } = useAuth();
+  const socketRef                       = useRef(null);
+  const [isConnected, setIsConnected]   = useState(false);
+  const [messages, setMessages]         = useState([]);
+  const [onlineUsers, setOnlineUsers]   = useState([]);
+  const [typingUsers, setTypingUsers]   = useState([]);
+  const [activeRoom, setActiveRoom]     = useState(null);
+  const [roomMood, setRoomMood]         = useState({ mood: 'neutral', score: 50 });
+
+  useEffect(() => {
+    if (!token) return;
+
+    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    socketRef.current = socket;
+
+    socket.on('connect',    () => { console.log('🔌 Socket:', socket.id); setIsConnected(true); });
+    socket.on('disconnect', () => { setIsConnected(false); });
+    socket.on('connect_error', (e) => console.error('Socket error:', e.message));
+
+    socket.on('receive_message', ({ message }) => {
+      setMessages((prev) => [...prev, message]);
+    });
+
+    socket.on('online_users', ({ users }) => setOnlineUsers(users));
+
+    socket.on('user_joined', ({ username }) => {
+      setMessages((prev) => [...prev, { _id: `sys-${Date.now()}`, type: 'system', content: `${username} joined the room`, createdAt: new Date() }]);
+    });
+
+    socket.on('user_left', ({ username }) => {
+      setMessages((prev) => [...prev, { _id: `sys-${Date.now()}l`, type: 'system', content: `${username} left the room`, createdAt: new Date() }]);
+    });
+
+    socket.on('user_typing',         ({ username }) => setTypingUsers((p) => p.includes(username) ? p : [...p, username]));
+    socket.on('user_stopped_typing', ({ username }) => setTypingUsers((p) => p.filter((u) => u !== username)));
+    socket.on('mood_updated',        ({ mood, score }) => setRoomMood({ mood, score }));
+    socket.on('error',               ({ message }) => console.error('Socket error:', message));
+
+    return () => { socket.disconnect(); socketRef.current = null; setIsConnected(false); };
+  }, [token]);
+
+  const joinRoom = useCallback((room, previousMessages = []) => {
+    if (!socketRef.current) return;
+    setActiveRoom(room);
+    setMessages(previousMessages);
+    setOnlineUsers([]);
+    setTypingUsers([]);
+    setRoomMood({ mood: room.mood || 'neutral', score: room.moodScore || 50 });
+    socketRef.current.emit('join_room', { roomId: room._id });
+  }, []);
+
+  const leaveRoom = useCallback(() => {
+    if (!socketRef.current || !activeRoom) return;
+    socketRef.current.emit('leave_room', { roomId: activeRoom._id });
+    setActiveRoom(null); setMessages([]); setOnlineUsers([]); setTypingUsers([]);
+  }, [activeRoom]);
+
+  const sendMessage = useCallback(({ content, type = 'text', language = '' }) => {
+    if (!socketRef.current || !activeRoom || !content?.trim()) return;
+    socketRef.current.emit('send_message', { roomId: activeRoom._id, content, type, language });
+  }, [activeRoom]);
+
+  const emitTyping     = useCallback(() => { if (socketRef.current && activeRoom) socketRef.current.emit('typing',      { roomId: activeRoom._id }); }, [activeRoom]);
+  const emitStopTyping = useCallback(() => { if (socketRef.current && activeRoom) socketRef.current.emit('stop_typing', { roomId: activeRoom._id }); }, [activeRoom]);
+
+  return (
+    <SocketContext.Provider value={{ socket: socketRef.current, isConnected, messages, setMessages, onlineUsers, typingUsers, activeRoom, roomMood, setRoomMood, joinRoom, leaveRoom, sendMessage, emitTyping, emitStopTyping }}>
+      {children}
+    </SocketContext.Provider>
+  );
+};
+
+export const useSocket = () => {
+  const ctx = useContext(SocketContext);
+  if (!ctx) throw new Error('useSocket must be used inside SocketProvider');
+  return ctx;
+};
+
+export default SocketContext;

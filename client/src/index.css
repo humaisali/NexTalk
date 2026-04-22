@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+  }
+
+  body {
+    background-color: #050709;
+    color: #E6EDF3;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0D1117;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #30363D;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #0A84FF;
+  }
+}
+
+@layer components {
+  /* Reusable button styles */
+  .btn-primary {
+    @apply bg-nt-blue hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-lg transition-colors duration-200;
+  }
+  .btn-ghost {
+    @apply bg-transparent hover:bg-nt-surface2 text-nt-muted hover:text-nt-text px-4 py-2 rounded-lg transition-colors duration-200;
+  }
+
+  /* Input field */
+  .nt-input {
+    @apply w-full bg-nt-surface2 border border-nt-border text-nt-text placeholder-nt-muted rounded-lg px-4 py-2.5 focus:outline-none focus:border-nt-blue transition-colors duration-200;
+  }
+
+  /* Card / panel */
+  .nt-card {
+    @apply bg-nt-surface border border-nt-border rounded-xl;
+  }
+}
