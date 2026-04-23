@@ -24,7 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 // ─────────────────────────────────────────────
 app.use('/api/auth',  require('./routes/auth'));
 app.use('/api/rooms', require('./routes/rooms'));
-// app.use('/api/ai', require('./routes/ai'));  ← wired in Day 4
+app.use('/api/ai', require('./routes/ai'));
 
 // Health check
 app.get('/', (req, res) => {
