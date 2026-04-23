@@ -9,20 +9,42 @@ const TONE_CONFIG = {
   friendly:   { label: 'Friendly',  color: 'text-nt-success', bg: 'bg-nt-success/10', border: 'border-nt-success/30', emoji: '😊' },
 };
 
-const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining }) => {
-  const { user }           = useAuth();
+/**
+ * Props:
+ *   msg              — message object from DB / socket
+ *   isOwn            — boolean
+ *   onExplainCode    — async (msgId, code, lang) → void
+ *   isExplaining     — msgId currently being explained
+ *   onTranslate      — async (msgId, content, targetLang) → void
+ *   translationLoading — msgId currently being translated
+ *   translations     — { [msgId]: translatedText }
+ */
+const MessageBubble = ({
+  msg,
+  isOwn,
+  onExplainCode,
+  isExplaining,
+  onTranslate,
+  translationLoading,
+  translations = {}
+}) => {
+  const { user }            = useAuth();
   const [showTrans, setShowTrans] = useState(false);
 
   const time = new Date(msg.createdAt).toLocaleTimeString([], {
     hour: '2-digit', minute: '2-digit'
   });
 
-  const tone       = msg.tone ? TONE_CONFIG[msg.tone] : null;
-  const translated = msg.translations?.get?.(user?.language) ||
-                     (msg.translations instanceof Map
-                       ? msg.translations.get(user?.language)
-                       : msg.translations?.[user?.language]);
+  const tone = msg.tone ? TONE_CONFIG[msg.tone] : null;
 
+  // Translation: check client-side cache first, then server-side stored translations
+  const clientTranslation = translations[msg._id];
+  const serverTranslation = msg.translations instanceof Map
+    ? msg.translations.get(user?.language)
+    : msg.translations?.[user?.language];
+  const translated = clientTranslation || serverTranslation;
+
+  // System messages
   if (msg.type === 'system') {
     return (
       <div className="flex justify-center my-2">
@@ -33,6 +55,19 @@ const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining }) => {
     );
   }
 
+  const handleTranslateClick = async () => {
+    if (!showTrans && !translated && onTranslate && user?.language && user.language !== 'en') {
+      await onTranslate(msg._id, msg.content, user.language);
+    }
+    setShowTrans(!showTrans);
+  };
+
+  const showTranslateButton =
+    !isOwn &&
+    msg.type === 'text' &&
+    user?.language &&
+    user.language !== 'en';
+
   return (
     <div className={`flex gap-3 mb-4 group ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
 
@@ -41,10 +76,10 @@ const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining }) => {
         {msg.sender?.avatar || msg.sender?.username?.[0]?.toUpperCase() || '?'}
       </div>
 
-      {/* Content */}
+      {/* Content column */}
       <div className={`flex flex-col gap-1 max-w-xs lg:max-w-md xl:max-w-lg ${isOwn ? 'items-end' : 'items-start'}`}>
 
-        {/* Sender name + time */}
+        {/* Sender name + timestamp */}
         {!isOwn && (
           <div className="flex items-baseline gap-2 px-1">
             <span className="text-xs font-semibold text-nt-text">{msg.sender?.username}</span>
@@ -52,7 +87,7 @@ const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining }) => {
           </div>
         )}
 
-        {/* Tone badge (above bubble, only for own messages) */}
+        {/* Tone badge — shown above own bubbles only */}
         {isOwn && tone && (
           <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border self-end ${tone.bg} ${tone.border} ${tone.color}`}>
             <span>{tone.emoji}</span>
@@ -60,12 +95,12 @@ const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining }) => {
           </div>
         )}
 
-        {/* Message bubble or code block */}
+        {/* Bubble or CodeBlock */}
         {msg.type === 'code' ? (
           <CodeBlock
             content={msg.content}
             language={msg.language || 'javascript'}
-            explanation={msg.codeExplanation}
+            explanation={msg.codeExplanation || ''}
             onExplain={(code, lang) => onExplainCode?.(msg._id, code, lang)}
             isExplaining={isExplaining === msg._id}
           />
@@ -79,32 +114,37 @@ const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining }) => {
           </div>
         )}
 
-        {/* Bottom row: time (own) + translation toggle */}
+        {/* Bottom meta row */}
         <div className={`flex items-center gap-2 px-1 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
           {isOwn && <span className="text-xs text-nt-muted">{time}</span>}
 
-          {/* Translation toggle */}
-          {translated && translated !== msg.content && (
+          {/* Translate button */}
+          {showTranslateButton && (
             <button
-              onClick={() => setShowTrans(!showTrans)}
-              className="flex items-center gap-1 text-xs text-nt-muted hover:text-nt-cyan transition-colors"
+              onClick={handleTranslateClick}
+              disabled={translationLoading === msg._id}
+              className="flex items-center gap-1 text-xs text-nt-muted hover:text-nt-cyan transition-colors disabled:opacity-50"
             >
               <FiGlobe size={10} />
-              <span>Translation</span>
-              {showTrans ? <FiChevronUp size={10} /> : <FiChevronDown size={10} />}
+              <span>{translationLoading === msg._id ? 'Translating…' : 'Translate'}</span>
+              {translated && (translationLoading !== msg._id) && (
+                showTrans ? <FiChevronUp size={10} /> : <FiChevronDown size={10} />
+              )}
             </button>
           )}
         </div>
 
         {/* Translation bubble */}
         {showTrans && translated && (
-          <div className={`px-3 py-2 rounded-xl text-xs text-nt-muted border border-nt-cyan/20 bg-nt-cyan/5 leading-relaxed
+          <div className={`px-3 py-2 rounded-xl text-xs border border-nt-cyan/20 bg-nt-cyan/5 leading-relaxed
             ${isOwn ? 'self-end' : 'self-start'}`}>
             <div className="flex items-center gap-1 mb-1">
               <FiGlobe size={10} className="text-nt-cyan" />
-              <span className="text-nt-cyan font-medium">Translated</span>
+              <span className="text-nt-cyan font-semibold uppercase tracking-wider text-xs">
+                {user?.language?.toUpperCase()}
+              </span>
             </div>
-            {translated}
+            <p className="text-nt-muted">{translated}</p>
           </div>
         )}
       </div>

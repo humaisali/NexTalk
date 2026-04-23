@@ -4,22 +4,33 @@ import { useSocket } from '../context/SocketContext';
 import MessageBubble from './MessageBubble';
 import { FiArrowDown } from 'react-icons/fi';
 
-// Props:
-//   onExplainCode  — async fn(msgId, code, lang)
-//   explainLoading — msgId that is currently being explained
-const ChatWindow = ({ onExplainCode, explainLoading }) => {
+/**
+ * Props:
+ *   onExplainCode      — async (msgId, code, lang)
+ *   explainLoading     — msgId currently explaining
+ *   onTranslate        — async (msgId, content, lang)
+ *   translationLoading — msgId currently translating
+ *   translations       — { [msgId]: translatedText }
+ */
+const ChatWindow = ({
+  onExplainCode,
+  explainLoading,
+  onTranslate,
+  translationLoading,
+  translations = {}
+}) => {
   const { user }                              = useAuth();
   const { messages, typingUsers, activeRoom } = useSocket();
   const bottomRef                             = useRef(null);
   const containerRef                          = useRef(null);
   const [showScrollBtn, setShowScrollBtn]     = useState(false);
 
-  // Auto-scroll on new messages if near bottom
+  // Auto-scroll when new messages arrive, only if near bottom
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 180;
-    if (isNearBottom) {
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+    if (nearBottom) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       setShowScrollBtn(false);
     } else {
@@ -27,11 +38,13 @@ const ChatWindow = ({ onExplainCode, explainLoading }) => {
     }
   }, [messages]);
 
+  // Reset scroll button when room changes
+  useEffect(() => { setShowScrollBtn(false); }, [activeRoom?._id]);
+
   const handleScroll = () => {
     const el = containerRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    setShowScrollBtn(!nearBottom);
+    setShowScrollBtn(el.scrollHeight - el.scrollTop - el.clientHeight > 100);
   };
 
   const scrollToBottom = () => {
@@ -48,14 +61,15 @@ const ChatWindow = ({ onExplainCode, explainLoading }) => {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
-      {/* Messages scroll area */}
+
+      {/* Messages */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-5 py-5 space-y-0"
+        className="flex-1 overflow-y-auto px-5 py-5"
       >
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-center select-none">
             <div className="w-14 h-14 rounded-2xl bg-nt-surface2 border border-nt-border flex items-center justify-center text-2xl">
               💬
             </div>
@@ -65,7 +79,7 @@ const ChatWindow = ({ onExplainCode, explainLoading }) => {
               </p>
               <p className="text-nt-muted text-sm">This is the beginning of the conversation.</p>
               {activeRoom.description && (
-                <p className="text-nt-muted text-xs mt-1">{activeRoom.description}</p>
+                <p className="text-nt-muted/60 text-xs mt-1">{activeRoom.description}</p>
               )}
             </div>
           </div>
@@ -80,13 +94,16 @@ const ChatWindow = ({ onExplainCode, explainLoading }) => {
               }
               onExplainCode={onExplainCode}
               isExplaining={explainLoading}
+              onTranslate={onTranslate}
+              translationLoading={translationLoading}
+              translations={translations}
             />
           ))
         )}
 
         {/* Typing indicator */}
         {typingText && (
-          <div className="flex items-center gap-2 mt-2 px-1">
+          <div className="flex items-center gap-2 mt-1 px-1">
             <div className="flex gap-1">
               {[0, 150, 300].map((d) => (
                 <div key={d} className="w-1.5 h-1.5 rounded-full bg-nt-muted animate-bounce" style={{ animationDelay: `${d}ms` }} />
@@ -99,11 +116,11 @@ const ChatWindow = ({ onExplainCode, explainLoading }) => {
         <div ref={bottomRef} />
       </div>
 
-      {/* Scroll to bottom button */}
+      {/* Scroll-to-bottom fab */}
       {showScrollBtn && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-4 right-5 w-9 h-9 rounded-full bg-nt-blue shadow-lg flex items-center justify-center text-white hover:bg-blue-500 transition-all z-10"
+          className="absolute bottom-4 right-5 w-9 h-9 rounded-full bg-nt-blue shadow-lg shadow-nt-blue/30 flex items-center justify-center text-white hover:bg-blue-500 transition-all z-10"
           title="Scroll to bottom"
         >
           <FiArrowDown size={16} />
