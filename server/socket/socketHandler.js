@@ -1,15 +1,18 @@
-const jwt     = require('jsonwebtoken');
-const User    = require('../models/User');
-const Room    = require('../models/Room');
+const jwt    = require('jsonwebtoken');
+const User   = require('../models/User');
+const Room   = require('../models/Room');
 const Message = require('../models/Message');
-const gemini  = require('../services/geminiService');
+const gemini = require('../services/geminiService');
 
 // In-memory presence: roomId → Map<userId, userInfo>
 const roomUsers    = new Map();
-// socketId → userId (for disconnect cleanup)
 const socketToUser = new Map();
+// roomId → message count since last mood update
+const roomMsgCount = new Map();
 
-// ─── Presence helpers ─────────────────────────────────────────────
+const MOOD_TRIGGER_EVERY = 8; // messages
+
+// ─── Presence helpers ──────────────────────────────────────────
 const getRoomUserList = (roomId) =>
   roomUsers.has(roomId) ? Array.from(roomUsers.get(roomId).values()) : [];
 
@@ -31,7 +34,7 @@ const getUserActiveRooms = (userId) => {
   return rooms;
 };
 
-// ─── Auth middleware ──────────────────────────────────────────────
+// ─── Socket auth ───────────────────────────────────────────────
 const socketAuth = async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token;
@@ -46,7 +49,38 @@ const socketAuth = async (socket, next) => {
   }
 };
 
-// ─── Main handler ─────────────────────────────────────────────────
+// ─── Auto mood update ──────────────────────────────────────────
+// Runs in background — fetches last 20 messages, calls Gemini,
+// then broadcasts mood_updated to the room and persists to DB.
+const triggerMoodUpdate = async (io, roomId) => {
+  try {
+    const recentMessages = await Message.find({ room: roomId })
+      .populate('sender', 'username')
+      .sort({ createdAt: -1 })
+      .limit(20);
+
+    if (recentMessages.length < 3) return;
+
+    const msgs = recentMessages.reverse().filter((m) => m.type !== 'system');
+    const { mood, score } = await gemini.detectMood(msgs);
+
+    // Persist to room
+    await Room.findByIdAndUpdate(roomId, { mood, moodScore: score });
+
+    // Broadcast to everyone in room with timestamp for history tracking
+    io.to(roomId).emit('mood_updated', {
+      mood,
+      score,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`🎭 Mood update [${roomId}]: ${mood} (${score}%)`);
+  } catch (err) {
+    console.error('triggerMoodUpdate error:', err.message);
+  }
+};
+
+// ─── Main handler ──────────────────────────────────────────────
 const socketHandler = (io) => {
   io.use(socketAuth);
 
@@ -56,19 +90,18 @@ const socketHandler = (io) => {
     await User.findByIdAndUpdate(user._id, { isOnline: true });
     socketToUser.set(socket.id, user._id.toString());
 
-    // ── join_room ─────────────────────────────────────────────────
+    // ── join_room ──────────────────────────────────────────────
     socket.on('join_room', async ({ roomId }) => {
       try {
         const room = await Room.findById(roomId);
         if (!room) return socket.emit('error', { message: 'Room not found.' });
 
-        // Leave current rooms
         const current = Array.from(socket.rooms).filter((r) => r !== socket.id);
         for (const r of current) {
           socket.leave(r);
           removeUserFromRoom(r, user._id.toString());
-          socket.to(r).emit('user_left', { userId: user._id, username: user.username });
-          io.to(r).emit('online_users', { users: getRoomUserList(r) });
+          socket.to(r).emit('user_left',   { userId: user._id, username: user.username });
+          io.to(r).emit('online_users',    { users: getRoomUserList(r) });
         }
 
         socket.join(roomId);
@@ -82,7 +115,14 @@ const socketHandler = (io) => {
         await Room.findByIdAndUpdate(roomId, { $addToSet: { members: user._id } });
 
         socket.to(roomId).emit('user_joined', { userId: user._id, username: user.username, avatar: user.avatar });
-        io.to(roomId).emit('online_users', { users: getRoomUserList(roomId) });
+        io.to(roomId).emit('online_users',    { users: getRoomUserList(roomId) });
+
+        // Send current room mood to the newly joined user
+        socket.emit('mood_updated', {
+          mood:      room.mood      || 'neutral',
+          score:     room.moodScore || 50,
+          timestamp: new Date().toISOString()
+        });
 
         console.log(`👥 ${user.username} → #${room.name}`);
       } catch (err) {
@@ -91,7 +131,7 @@ const socketHandler = (io) => {
       }
     });
 
-    // ── leave_room ────────────────────────────────────────────────
+    // ── leave_room ─────────────────────────────────────────────
     socket.on('leave_room', ({ roomId }) => {
       socket.leave(roomId);
       removeUserFromRoom(roomId, user._id.toString());
@@ -99,8 +139,7 @@ const socketHandler = (io) => {
       io.to(roomId).emit('online_users',    { users: getRoomUserList(roomId) });
     });
 
-    // ── send_message ──────────────────────────────────────────────
-    // Day 5: code messages get auto-explained by Gemini after broadcast
+    // ── send_message ────────────────────────────────────────────
     socket.on('send_message', async ({ roomId, content, type = 'text', language = '' }) => {
       try {
         if (!content?.trim()) return;
@@ -111,26 +150,29 @@ const socketHandler = (io) => {
         });
         await message.populate('sender', 'username avatar');
 
-        // Broadcast immediately so UI is responsive
         io.to(roomId).emit('receive_message', { message });
 
-        // ── Day 5: auto-explain code messages in the background ──
+        // ── Auto code explanation (background) ──────────────────
         if (type === 'code' && content.trim().length > 10) {
           setImmediate(async () => {
             try {
               const { explanation } = await gemini.explainCode(content.trim(), language || 'javascript');
               if (explanation) {
                 await Message.findByIdAndUpdate(message._id, { codeExplanation: explanation });
-                // Push the explanation to everyone in the room
                 io.to(roomId).emit('code_explained', {
-                  messageId:   message._id.toString(),
+                  messageId: message._id.toString(),
                   explanation
                 });
               }
-            } catch (e) {
-              console.error('Auto-explain error:', e.message);
-            }
+            } catch (e) { console.error('Auto-explain error:', e.message); }
           });
+        }
+
+        // ── Auto mood update every MOOD_TRIGGER_EVERY messages ──
+        const count = (roomMsgCount.get(roomId) || 0) + 1;
+        roomMsgCount.set(roomId, count);
+        if (count % MOOD_TRIGGER_EVERY === 0) {
+          setImmediate(() => triggerMoodUpdate(io, roomId));
         }
 
         console.log(`💬 [${roomId}] ${user.username} (${type}): "${content.substring(0, 50)}"`);
@@ -140,16 +182,16 @@ const socketHandler = (io) => {
       }
     });
 
-    // ── typing indicators ─────────────────────────────────────────
+    // ── typing ─────────────────────────────────────────────────
     socket.on('typing',      ({ roomId }) => socket.to(roomId).emit('user_typing',         { username: user.username }));
     socket.on('stop_typing', ({ roomId }) => socket.to(roomId).emit('user_stopped_typing', { username: user.username }));
 
-    // ── mood update (from AI route via REST) ──────────────────────
-    socket.on('update_mood', ({ roomId, mood, score }) => {
-      io.to(roomId).emit('mood_updated', { mood, score });
+    // ── manual mood refresh (from client button) ───────────────
+    socket.on('request_mood_update', ({ roomId }) => {
+      setImmediate(() => triggerMoodUpdate(io, roomId));
     });
 
-    // ── disconnect ────────────────────────────────────────────────
+    // ── disconnect ─────────────────────────────────────────────
     socket.on('disconnect', async () => {
       console.log(`❌ ${user.username} disconnected`);
       const activeRooms = getUserActiveRooms(user._id.toString());

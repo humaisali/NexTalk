@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import CodeBlock from './CodeBlock';
-import { FiGlobe, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { useState, useEffect } from 'react';
+import { useAuth }   from '../context/AuthContext';
+import CodeBlock     from './CodeBlock';
+import { FiGlobe, FiChevronDown, FiChevronUp, FiLoader } from 'react-icons/fi';
 
 const TONE_CONFIG = {
   aggressive: { label: 'Aggressive', color: 'text-nt-danger',  bg: 'bg-nt-danger/10',  border: 'border-nt-danger/30',  emoji: '😤' },
@@ -10,14 +10,21 @@ const TONE_CONFIG = {
 };
 
 /**
+ * MessageBubble — Day 6 update:
+ *  - Calls onAutoTranslate on mount for non-English users (received messages only)
+ *  - Shows translated text automatically if available
+ *  - Translation toggle still available manually
+ *
  * Props:
- *   msg              — message object from DB / socket
- *   isOwn            — boolean
- *   onExplainCode    — async (msgId, code, lang) → void
- *   isExplaining     — msgId currently being explained
- *   onTranslate      — async (msgId, content, targetLang) → void
- *   translationLoading — msgId currently being translated
- *   translations     — { [msgId]: translatedText }
+ *   msg                — message object
+ *   isOwn              — boolean
+ *   onExplainCode      — async (msgId, code, lang)
+ *   isExplaining       — msgId being explained
+ *   onTranslate        — async (msgId, content, lang) — manual trigger
+ *   onAutoTranslate    — async (message) — auto trigger on mount
+ *   translationLoading — msgId being translated
+ *   translations       — { [msgId]: text }
+ *   userLanguage       — e.g. 'ur', 'hi', 'en'
  */
 const MessageBubble = ({
   msg,
@@ -25,26 +32,40 @@ const MessageBubble = ({
   onExplainCode,
   isExplaining,
   onTranslate,
+  onAutoTranslate,
   translationLoading,
-  translations = {}
+  translations = {},
+  userLanguage = 'en'
 }) => {
   const { user }            = useAuth();
   const [showTrans, setShowTrans] = useState(false);
 
-  const time = new Date(msg.createdAt).toLocaleTimeString([], {
-    hour: '2-digit', minute: '2-digit'
-  });
+  // Day 6: auto-translate received text messages on mount
+  useEffect(() => {
+    if (!isOwn && msg.type === 'text' && userLanguage && userLanguage !== 'en') {
+      onAutoTranslate?.(msg);
+    }
+  }, [msg._id, userLanguage]);
 
-  const tone = msg.tone ? TONE_CONFIG[msg.tone] : null;
+  // Auto-show translation bubble when it arrives
+  useEffect(() => {
+    if (translations[msg._id] && !showTrans && !isOwn) {
+      setShowTrans(true);
+    }
+  }, [translations[msg._id]]);
 
-  // Translation: check client-side cache first, then server-side stored translations
-  const clientTranslation = translations[msg._id];
-  const serverTranslation = msg.translations instanceof Map
-    ? msg.translations.get(user?.language)
-    : msg.translations?.[user?.language];
-  const translated = clientTranslation || serverTranslation;
+  const time         = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const tone         = msg.tone ? TONE_CONFIG[msg.tone] : null;
+  const translated   = translations[msg._id];
+  const isTranslating = translationLoading === msg._id;
 
-  // System messages
+  const showTranslateControls =
+    !isOwn &&
+    msg.type === 'text' &&
+    userLanguage &&
+    userLanguage !== 'en';
+
+  // System message
   if (msg.type === 'system') {
     return (
       <div className="flex justify-center my-2">
@@ -54,19 +75,6 @@ const MessageBubble = ({
       </div>
     );
   }
-
-  const handleTranslateClick = async () => {
-    if (!showTrans && !translated && onTranslate && user?.language && user.language !== 'en') {
-      await onTranslate(msg._id, msg.content, user.language);
-    }
-    setShowTrans(!showTrans);
-  };
-
-  const showTranslateButton =
-    !isOwn &&
-    msg.type === 'text' &&
-    user?.language &&
-    user.language !== 'en';
 
   return (
     <div className={`flex gap-3 mb-4 group ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -79,7 +87,7 @@ const MessageBubble = ({
       {/* Content column */}
       <div className={`flex flex-col gap-1 max-w-xs lg:max-w-md xl:max-w-lg ${isOwn ? 'items-end' : 'items-start'}`}>
 
-        {/* Sender name + timestamp */}
+        {/* Sender name + time */}
         {!isOwn && (
           <div className="flex items-baseline gap-2 px-1">
             <span className="text-xs font-semibold text-nt-text">{msg.sender?.username}</span>
@@ -87,7 +95,7 @@ const MessageBubble = ({
           </div>
         )}
 
-        {/* Tone badge — shown above own bubbles only */}
+        {/* Tone badge */}
         {isOwn && tone && (
           <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border self-end ${tone.bg} ${tone.border} ${tone.color}`}>
             <span>{tone.emoji}</span>
@@ -118,16 +126,21 @@ const MessageBubble = ({
         <div className={`flex items-center gap-2 px-1 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
           {isOwn && <span className="text-xs text-nt-muted">{time}</span>}
 
-          {/* Translate button */}
-          {showTranslateButton && (
+          {/* Translation control */}
+          {showTranslateControls && (
             <button
-              onClick={handleTranslateClick}
-              disabled={translationLoading === msg._id}
-              className="flex items-center gap-1 text-xs text-nt-muted hover:text-nt-cyan transition-colors disabled:opacity-50"
+              onClick={() => {
+                if (!translated && !isTranslating) onTranslate?.(msg._id, msg.content, userLanguage);
+                setShowTrans(!showTrans);
+              }}
+              className="flex items-center gap-1 text-xs text-nt-muted hover:text-nt-cyan transition-colors"
             >
-              <FiGlobe size={10} />
-              <span>{translationLoading === msg._id ? 'Translating…' : 'Translate'}</span>
-              {translated && (translationLoading !== msg._id) && (
+              {isTranslating
+                ? <FiLoader size={10} className="animate-spin text-nt-cyan" />
+                : <FiGlobe size={10} />
+              }
+              <span>{isTranslating ? 'Translating…' : 'Translation'}</span>
+              {translated && !isTranslating && (
                 showTrans ? <FiChevronUp size={10} /> : <FiChevronDown size={10} />
               )}
             </button>
@@ -135,16 +148,19 @@ const MessageBubble = ({
         </div>
 
         {/* Translation bubble */}
-        {showTrans && translated && (
-          <div className={`px-3 py-2 rounded-xl text-xs border border-nt-cyan/20 bg-nt-cyan/5 leading-relaxed
+        {showTrans && (translated || isTranslating) && (
+          <div className={`px-3 py-2 rounded-xl text-xs border border-nt-cyan/25 bg-nt-cyan/5 leading-relaxed
             ${isOwn ? 'self-end' : 'self-start'}`}>
             <div className="flex items-center gap-1 mb-1">
               <FiGlobe size={10} className="text-nt-cyan" />
               <span className="text-nt-cyan font-semibold uppercase tracking-wider text-xs">
-                {user?.language?.toUpperCase()}
+                {userLanguage}
               </span>
             </div>
-            <p className="text-nt-muted">{translated}</p>
+            {isTranslating
+              ? <span className="text-nt-muted italic">Translating…</span>
+              : <p className="text-nt-muted">{translated}</p>
+            }
           </div>
         )}
       </div>

@@ -50,3 +50,7 @@ export const explainCode    = (code, language) =>
 export const getRoomMood    = (messages) => API.post('/api/ai/mood', { messages });
 
 export default API;
+
+// ─── Day 6 additions ───────────────────────────────────────────
+export const batchTranslate = (messages, targetLanguage) =>
+  API.post('/api/ai/batch-translate', { messages, targetLanguage });

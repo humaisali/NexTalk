@@ -151,3 +151,37 @@ router.post('/translate-and-save', async (req, res) => {
 });
 
 module.exports = router;
+
+// ─────────────────────────────────────────────
+// POST /api/ai/batch-translate  (Day 6)
+// Translates multiple messages at once.
+// Body: { messages: [{ _id, content }], targetLanguage }
+// Returns: { translations: { [_id]: translatedText } }
+// ─────────────────────────────────────────────
+router.post('/batch-translate', async (req, res) => {
+  try {
+    const { messages, targetLanguage } = req.body;
+    if (!Array.isArray(messages) || !targetLanguage) {
+      return res.status(400).json({ message: 'messages[] and targetLanguage required.' });
+    }
+    if (targetLanguage === 'en') return res.status(200).json({ translations: {} });
+
+    // Translate in parallel (max 10 at a time to avoid rate limits)
+    const batch = messages.slice(0, 10);
+    const results = await Promise.allSettled(
+      batch.map((m) => gemini.translateMessage(m.content, targetLanguage))
+    );
+
+    const translations = {};
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled' && result.value.translated) {
+        translations[batch[i]._id] = result.value.translated;
+      }
+    });
+
+    res.status(200).json({ translations });
+  } catch (err) {
+    console.error('POST /ai/batch-translate:', err);
+    res.status(500).json({ translations: {} });
+  }
+});
