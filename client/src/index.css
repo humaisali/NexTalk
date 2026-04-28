@@ -3,15 +3,12 @@
 @tailwind utilities;
 
 @layer base {
-  * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   html, body, #root {
     height: 100%;
     width: 100%;
+    overflow: hidden;
   }
 
   body {
@@ -19,40 +16,76 @@
     color: #E6EDF3;
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: #0D1117;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #30363D;
-    border-radius: 3px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #0A84FF;
-  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #30363D; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #0A84FF; }
+
+  /* Smooth focus outlines */
+  :focus-visible { outline: 2px solid #0A84FF; outline-offset: 2px; border-radius: 4px; }
+  :focus:not(:focus-visible) { outline: none; }
 }
 
 @layer components {
-  /* Reusable button styles */
+  /* Buttons */
   .btn-primary {
-    @apply bg-nt-blue hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-lg transition-colors duration-200;
+    @apply bg-nt-blue hover:bg-blue-500 active:bg-blue-600
+           text-white font-semibold px-4 py-2 rounded-xl
+           transition-all duration-150 cursor-pointer
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-ghost {
-    @apply bg-transparent hover:bg-nt-surface2 text-nt-muted hover:text-nt-text px-4 py-2 rounded-lg transition-colors duration-200;
+    @apply bg-transparent hover:bg-nt-surface2 active:bg-nt-border
+           text-nt-muted hover:text-nt-text px-4 py-2 rounded-xl
+           transition-all duration-150 cursor-pointer;
   }
 
-  /* Input field */
+  /* Input */
   .nt-input {
-    @apply w-full bg-nt-surface2 border border-nt-border text-nt-text placeholder-nt-muted rounded-lg px-4 py-2.5 focus:outline-none focus:border-nt-blue transition-colors duration-200;
+    @apply w-full bg-nt-surface2 border border-nt-border
+           text-nt-text placeholder-nt-muted rounded-xl px-4 py-2.5
+           focus:outline-none focus:border-nt-blue/60 focus:ring-1 focus:ring-nt-blue/20
+           transition-all duration-150;
   }
 
-  /* Card / panel */
+  /* Card */
   .nt-card {
-    @apply bg-nt-surface border border-nt-border rounded-xl;
+    @apply bg-nt-surface border border-nt-border rounded-2xl;
   }
+}
+
+@layer utilities {
+  /* Toast slide-in animation */
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+  }
+  .animate-toast-in {
+    animation: toast-in 0.2s ease-out forwards;
+  }
+
+  /* Fade in */
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .animate-fade-in { animation: fade-in 0.25s ease-out forwards; }
+
+  /* Slide up */
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-slide-up { animation: slide-up 0.3s ease-out forwards; }
+
+  /* Gentle pulse for connection dot */
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+  .animate-pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
 }
