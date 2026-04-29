@@ -54,3 +54,13 @@ export default API;
 // ─── Day 6 additions ───────────────────────────────────────────
 export const batchTranslate = (messages, targetLanguage) =>
   API.post('/api/ai/batch-translate', { messages, targetLanguage });
+
+// ─── Auth additions (NexTalk number) ──────────────────────────────
+export const checkNumber  = (number) => API.get(`/api/auth/check-number?number=${encodeURIComponent(number)}`);
+export const findUser     = (number) => API.get(`/api/auth/find-user?number=${encodeURIComponent(number)}`);
+
+// ─── Conversations (Direct Messages) ──────────────────────────────
+export const getConversations    = ()               => API.get('/api/conversations');
+export const startConversation   = (nexTalkNumber)  => API.post('/api/conversations/start', { nexTalkNumber });
+export const getDirectMessages   = (conversationId) => API.get(`/api/conversations/${conversationId}/messages`);
+export const getUnreadDMCount    = ()               => API.get('/api/conversations/unread-count');
