@@ -175,3 +175,66 @@ router.get('/find-user', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+
+// ─────────────────────────────────────────────
+// PUT /api/auth/profile  [Protected]
+// Update username, password, and/or avatar.
+// Body: { username?, currentPassword?, newPassword?, avatar? }
+// avatar is a base64 data URL string (e.g. "data:image/jpeg;base64,...")
+// ─────────────────────────────────────────────
+router.put('/profile', authMiddleware, async (req, res) => {
+  try {
+    const { username, currentPassword, newPassword, avatar } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    const updates = {};
+
+    // ── Username change ──────────────────────────────────────────
+    if (username && username.trim() !== user.username) {
+      const trimmed = username.trim();
+      if (trimmed.length < 3) {
+        return res.status(400).json({ message: 'Username must be at least 3 characters.' });
+      }
+      const taken = await User.findOne({ username: trimmed, _id: { $ne: user._id } });
+      if (taken) return res.status(409).json({ message: 'Username already taken.' });
+      updates.username = trimmed;
+    }
+
+    // ── Password change ──────────────────────────────────────────
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ message: 'Current password is required to set a new one.' });
+      }
+      const match = await user.comparePassword(currentPassword);
+      if (!match) return res.status(401).json({ message: 'Current password is incorrect.' });
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: 'New password must be at least 6 characters.' });
+      }
+      // Setting password triggers the pre-save bcrypt hook
+      user.password = newPassword;
+    }
+
+    // ── Avatar change ────────────────────────────────────────────
+    if (avatar !== undefined) {
+      // Validate it's a data URL or empty string
+      if (avatar && !avatar.startsWith('data:image/')) {
+        return res.status(400).json({ message: 'Avatar must be a valid image.' });
+      }
+      // Limit size — base64 of 500KB image ≈ 680KB string
+      if (avatar && avatar.length > 700000) {
+        return res.status(400).json({ message: 'Avatar image is too large. Max 500KB.' });
+      }
+      updates.avatar = avatar;
+    }
+
+    // Apply non-password updates
+    Object.assign(user, updates);
+    await user.save();
+
+    res.status(200).json({ message: 'Profile updated successfully!', user });
+  } catch (err) {
+    console.error('PUT /profile error:', err);
+    res.status(500).json({ message: 'Server error updating profile.' });
+  }
+});

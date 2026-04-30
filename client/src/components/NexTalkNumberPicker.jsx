@@ -5,53 +5,56 @@ import { FiCheck, FiX, FiLoader, FiHash } from 'react-icons/fi';
 /**
  * NexTalkNumberPicker
  *
- * Lets a user choose their unique 7-digit suffix.
- * The prefix "+100" is fixed and displayed in the UI.
- * Performs a real-time availability check as they type.
- *
- * Props:
- *   value     — current full number value ("+1001234567")
- *   onChange  — fn(fullNumber) called when valid+available
- *   onStatus  — fn({ valid, available }) for parent form validation
+ * Fixed:
+ * - 429 rate-limit errors handled gracefully (shown as "try again" not invalid)
+ * - Debounce increased to 800ms to reduce API calls while typing
+ * - Pending check cancelled cleanly on unmount
  */
 const NexTalkNumberPicker = ({ value, onChange, onStatus }) => {
-  // Store only the 7-digit suffix locally
-  const [suffix,    setSuffix]    = useState(value?.replace('+100', '') || '');
-  const [status,    setStatus]    = useState(null); // null | 'checking' | 'available' | 'taken' | 'invalid'
-  const [message,   setMessage]   = useState('');
-  const debounceRef               = useRef(null);
+  const [suffix,  setSuffix]  = useState(value?.replace('+100', '') || '');
+  const [status,  setStatus]  = useState(null);
+  const [message, setMessage] = useState('');
+  const debounceRef           = useRef(null);
+  const mounted               = useRef(true);
 
   useEffect(() => {
-    // Clean and validate suffix
-    const cleaned = suffix.replace(/\D/g, '').slice(0, 7);
+    mounted.current = true;
+    return () => { mounted.current = false; clearTimeout(debounceRef.current); };
+  }, []);
 
-    if (cleaned.length === 0) {
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+
+    const digits = suffix.replace(/\D/g, '').slice(0, 7);
+
+    if (digits.length === 0) {
       setStatus(null); setMessage('');
       onStatus?.({ valid: false, available: false });
       onChange?.('');
       return;
     }
 
-    if (cleaned.length < 7) {
+    if (digits.length < 7) {
       setStatus('invalid');
-      setMessage(`${cleaned.length}/7 digits entered`);
+      setMessage(`${digits.length} / 7 digits entered`);
       onStatus?.({ valid: false, available: false });
       onChange?.('');
       return;
     }
 
-    // Exactly 7 digits — check availability
-    const fullNumber = `+100${cleaned}`;
+    // Exactly 7 digits — debounce the API call
+    const fullNumber = `+100${digits}`;
     setStatus('checking');
     setMessage('Checking availability…');
 
-    clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
         const { data } = await checkNumber(fullNumber);
+        if (!mounted.current) return;
+
         if (data.available) {
           setStatus('available');
-          setMessage('Available! ✓');
+          setMessage('Number available!');
           onStatus?.({ valid: true, available: true });
           onChange?.(fullNumber);
         } else {
@@ -60,15 +63,40 @@ const NexTalkNumberPicker = ({ value, onChange, onStatus }) => {
           onStatus?.({ valid: false, available: false });
           onChange?.('');
         }
-      } catch {
-        setStatus('invalid');
-        setMessage('Could not verify — try again');
-        onStatus?.({ valid: false, available: false });
-        onChange?.('');
+      } catch (err) {
+        if (!mounted.current) return;
+        const is429 = err?.response?.status === 429;
+        if (is429) {
+          // Rate limited — don't block user, let them continue
+          setStatus('warning');
+          setMessage('Checking paused — please wait a moment');
+          // Retry automatically after 3s
+          debounceRef.current = setTimeout(async () => {
+            if (!mounted.current) return;
+            try {
+              const { data } = await checkNumber(fullNumber);
+              if (!mounted.current) return;
+              if (data.available) {
+                setStatus('available'); setMessage('Number available!');
+                onStatus?.({ valid: true, available: true }); onChange?.(fullNumber);
+              } else {
+                setStatus('taken'); setMessage('Already taken — try a different number');
+                onStatus?.({ valid: false, available: false }); onChange?.('');
+              }
+            } catch {
+              if (!mounted.current) return;
+              setStatus('invalid'); setMessage('Could not verify — try again');
+              onStatus?.({ valid: false, available: false }); onChange?.('');
+            }
+          }, 3000);
+        } else {
+          setStatus('invalid');
+          setMessage('Could not verify — please try again');
+          onStatus?.({ valid: false, available: false });
+          onChange?.('');
+        }
       }
-    }, 600);
-
-    return () => clearTimeout(debounceRef.current);
+    }, 800);
   }, [suffix]);
 
   const handleInput = (e) => {
@@ -76,44 +104,46 @@ const NexTalkNumberPicker = ({ value, onChange, onStatus }) => {
     setSuffix(digits);
   };
 
-  const statusColor = {
-    available: 'text-nt-success border-nt-success/50',
-    taken:     'text-nt-danger  border-nt-danger/50',
-    invalid:   'text-nt-warning border-nt-warning/50',
-    checking:  'text-nt-muted   border-nt-border',
-  }[status] || 'text-nt-muted border-nt-border';
+  const borderColor = {
+    available: 'border-nt-success/60 focus-within:border-nt-success',
+    taken:     'border-nt-danger/60  focus-within:border-nt-danger',
+    invalid:   'border-nt-warning/50 focus-within:border-nt-warning',
+    warning:   'border-nt-warning/50 focus-within:border-nt-warning',
+    checking:  'border-nt-border    focus-within:border-nt-blue/50',
+  }[status] || 'border-nt-border focus-within:border-nt-blue/50';
 
-  const StatusIcon = () => {
-    if (status === 'checking')  return <FiLoader size={14} className="animate-spin text-nt-muted" />;
-    if (status === 'available') return <FiCheck  size={14} className="text-nt-success" />;
-    if (status === 'taken')     return <FiX      size={14} className="text-nt-danger"  />;
-    return null;
-  };
+  const msgColor = {
+    available: 'text-nt-success',
+    taken:     'text-nt-danger',
+    invalid:   'text-nt-warning',
+    warning:   'text-nt-warning',
+    checking:  'text-nt-muted',
+  }[status] || 'text-nt-muted';
+
+  const digits = suffix.replace(/\D/g, '');
 
   return (
     <div>
       <label className="block text-xs font-semibold text-nt-muted mb-1.5 uppercase tracking-wider">
         NexTalk Number
       </label>
-
-      {/* Explanation */}
-      <p className="text-xs text-nt-muted/80 mb-2 leading-relaxed">
-        Choose a unique 7-digit number. This is your NexTalk ID — share it with others so they can message you privately.
+      <p className="text-xs text-nt-muted/80 mb-2.5 leading-relaxed">
+        Choose a unique 7-digit number. This is your personal NexTalk ID — others use it to message you privately.
       </p>
 
-      {/* Input row */}
-      <div className={`flex items-center gap-0 rounded-xl border bg-nt-surface2 overflow-hidden transition-all ${statusColor}`}>
+      {/* Input */}
+      <div className={`flex items-center rounded-xl border bg-nt-surface2 overflow-hidden transition-all ${borderColor}`}>
         {/* Fixed prefix */}
         <div className="flex items-center gap-1.5 px-3 py-2.5 bg-nt-surface border-r border-nt-border flex-shrink-0">
-          <FiHash size={13} className="text-nt-blue" />
-          <span className="text-sm font-bold text-nt-blue tracking-wider">+100</span>
+          <FiHash size={13} className="text-nt-blue flex-shrink-0" />
+          <span className="text-sm font-bold text-nt-blue tracking-widest">+100</span>
         </div>
 
-        {/* 7-digit input */}
+        {/* 7-digit suffix */}
         <input
           type="text"
           inputMode="numeric"
-          value={suffix}
+          value={digits}
           onChange={handleInput}
           placeholder="1234567"
           maxLength={7}
@@ -122,25 +152,24 @@ const NexTalkNumberPicker = ({ value, onChange, onStatus }) => {
 
         {/* Status icon */}
         <div className="px-3 flex-shrink-0">
-          <StatusIcon />
+          {status === 'checking' || status === 'warning'
+            ? <FiLoader size={14} className="animate-spin text-nt-muted" />
+            : status === 'available'
+            ? <FiCheck  size={14} className="text-nt-success" />
+            : status === 'taken' || status === 'invalid'
+            ? <FiX      size={14} className="text-nt-danger" />
+            : null
+          }
         </div>
       </div>
 
       {/* Preview + status message */}
-      <div className="flex items-center justify-between mt-1.5 px-1">
-        {suffix.replace(/\D/g, '').length === 7 && (
-          <span className="text-xs text-nt-muted font-mono">
-            Your number: <strong className="text-nt-text">+100 {suffix.replace(/\D/g, '')}</strong>
-          </span>
-        )}
+      <div className="flex items-center justify-between mt-1.5 px-0.5">
+        <span className="text-xs text-nt-muted/60 font-mono">
+          {digits.length === 7 ? `+100 ${digits}` : ''}
+        </span>
         {message && (
-          <span className={`text-xs ml-auto ${
-            status === 'available' ? 'text-nt-success' :
-            status === 'taken'     ? 'text-nt-danger'  :
-            status === 'invalid'   ? 'text-nt-warning' : 'text-nt-muted'
-          }`}>
-            {message}
-          </span>
+          <span className={`text-xs ${msgColor}`}>{message}</span>
         )}
       </div>
     </div>
