@@ -64,3 +64,6 @@ export const getConversations    = ()               => API.get('/api/conversatio
 export const startConversation   = (nexTalkNumber)  => API.post('/api/conversations/start', { nexTalkNumber });
 export const getDirectMessages   = (conversationId) => API.get(`/api/conversations/${conversationId}/messages`);
 export const getUnreadDMCount    = ()               => API.get('/api/conversations/unread-count');
+
+// ─── Profile update ────────────────────────────────────────────────
+export const updateProfile = (data) => API.put('/api/auth/profile', data);
