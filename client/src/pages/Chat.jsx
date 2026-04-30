@@ -14,6 +14,7 @@ import SummaryModal             from '../components/SummaryModal';
 import ConnectionBanner         from '../components/ConnectionBanner';
 import DirectChatWindow         from '../components/DirectChatWindow';
 import StartConversation        from '../components/StartConversation';
+import EditProfileModal        from '../components/EditProfileModal';
 
 const Chat = () => {
   const { user }                                               = useAuth();
@@ -37,7 +38,8 @@ const Chat = () => {
   } = useConversations();
 
   const [summaryOpen, setSummaryOpen] = useState(false);
-  const [showNewChat, setShowNewChat] = useState(false);
+  const [showNewChat,    setShowNewChat]    = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const lastMoodCount                 = useRef(0);
   const reconnectShown                = useRef(false);
 
@@ -141,6 +143,7 @@ const Chat = () => {
           totalUnreadDMs={totalUnread}
           onSelectConv={openConversation}
           onNewChat={() => setShowNewChat(true)}
+          onEditProfile={() => setShowEditProfile(true)}
         />
 
         {/* Main content area */}
@@ -228,6 +231,11 @@ const Chat = () => {
         isLoading={summaryLoading}
         onGenerate={handleSummarize}
       />
+
+      {/* Edit Profile modal */}
+      {showEditProfile && (
+        <EditProfileModal onClose={() => setShowEditProfile(false)} />
+      )}
 
       {/* New DM modal */}
       {showNewChat && (
