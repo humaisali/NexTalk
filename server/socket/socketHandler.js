@@ -87,6 +87,12 @@ const socketHandler = (io) => {
     // ── ROOM EVENTS ────────────────────────────────────────────────
 
     socket.on('join_room', async ({ roomId }) => {
+      // Verify membership before allowing socket join
+      const memberCheck = await Room.findOne({ _id: roomId, members: user._id });
+      if (!memberCheck) {
+        return socket.emit('error', { message: 'You are not a member of this room. Use an invite link to join.' });
+      }
+      // original logic continues
       try {
         const room = await Room.findById(roomId);
         if (!room) return socket.emit('error', { message: 'Room not found.' });

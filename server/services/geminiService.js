@@ -1,222 +1,277 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// ─── Lazy client init ─────────────────────────────────────────────
+// ─── Client ────────────────────────────────────────────────────────
 let genAI = null;
 const getModel = () => {
   if (!genAI) genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  return genAI.getGenerativeModel({
+    model: 'gemini-1.5-flash',
+    generationConfig: {
+      temperature:     0.3,   // lower = more consistent JSON output
+      topP:            0.8,
+      maxOutputTokens: 1024,
+    }
+  });
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────
-const parseJSON = (text) => {
-  // Strip markdown fences Gemini sometimes wraps output in
-  const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-  // Find JSON object within the cleaned text
-  const jsonMatch = clean.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('No JSON object found in response');
-  return JSON.parse(jsonMatch[0]);
+// ─── Robust JSON extractor ─────────────────────────────────────────
+// Handles: raw JSON, ```json blocks, JSON buried in prose
+const extractJSON = (text) => {
+  if (!text) throw new Error('Empty response from Gemini');
+
+  // 1. Try to parse directly
+  try { return JSON.parse(text.trim()); } catch {}
+
+  // 2. Strip markdown fences
+  const stripped = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+  try { return JSON.parse(stripped); } catch {}
+
+  // 3. Extract first {...} block
+  const match = stripped.match(/\{[\s\S]*\}/);
+  if (match) {
+    try { return JSON.parse(match[0]); } catch {}
+  }
+
+  // 4. Give up — log the raw text for debugging
+  console.error('Gemini raw (unparseable):', text.substring(0, 300));
+  throw new Error('Could not parse JSON from Gemini response');
 };
 
+// ─── Retry wrapper ─────────────────────────────────────────────────
 const callGemini = async (prompt, retries = 2) => {
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  let lastErr;
+  for (let i = 0; i <= retries; i++) {
     try {
       const result = await getModel().generateContent(prompt);
-      return result.response.text();
+      const text   = result?.response?.text?.();
+      if (!text) throw new Error('Gemini returned empty text');
+      return text;
     } catch (err) {
-      if (attempt === retries) throw err;
-      await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+      lastErr = err;
+      console.warn(`Gemini attempt ${i + 1} failed:`, err.message);
+      if (i < retries) await new Promise((r) => setTimeout(r, 800 * (i + 1)));
     }
   }
+  throw lastErr;
 };
 
-const formatMessages = (messages) =>
+// ─── Format messages for prompts ──────────────────────────────────
+const fmt = (messages) =>
   messages
-    .filter((m) => m.type !== 'system' && m.content?.trim())
+    .filter((m) => m?.type !== 'system' && m?.content?.trim())
     .map((m) => `${m.sender?.username || 'User'}: ${m.content}`)
     .join('\n');
 
-// ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
 // 1. TONE ANALYZER
-// ─────────────────────────────────────────────────────────────────
+// Returns: { tone, score, suggestion }
+// ══════════════════════════════════════════════════════════════════
 const analyzeTone = async (message) => {
-  const prompt = `You are a communication coach. Analyze the tone of this message:
+  const fallback = { tone: 'neutral', score: 50, suggestion: '' };
+  if (!message?.trim()) return fallback;
 
-"${message}"
+  const prompt = `Analyze the tone of this message and respond with ONLY a JSON object.
+
+Message: "${message.trim()}"
 
 Rules:
-- "aggressive": rude, harsh, confrontational, demanding, dismissive
-- "neutral": factual, matter-of-fact, neither warm nor cold
-- "friendly": warm, polite, positive, encouraging, collaborative
+- "aggressive": rude, demanding, dismissive, confrontational
+- "neutral": factual, professional, neither warm nor cold
+- "friendly": warm, kind, encouraging, polite
 
-If tone is aggressive or neutral, suggest a friendlier rewrite that keeps the original meaning.
+Respond ONLY with this exact JSON (no extra text, no markdown):
+{"tone":"friendly","score":75,"suggestion":""}
 
-Respond ONLY with this JSON (no markdown, no explanation):
-{"tone":"aggressive|neutral|friendly","score":0-100,"suggestion":"rewritten version or empty string if friendly"}`;
+If tone is aggressive or neutral, put a friendlier rewrite in "suggestion".
+If tone is friendly, leave "suggestion" as empty string.`;
 
   try {
-    const result = parseJSON(await callGemini(prompt));
+    const raw    = await callGemini(prompt);
+    const result = extractJSON(raw);
     return {
-      tone:       ['aggressive', 'neutral', 'friendly'].includes(result.tone) ? result.tone : 'neutral',
-      score:      Number.isInteger(result.score) ? Math.min(100, Math.max(0, result.score)) : 50,
+      tone:       ['aggressive','neutral','friendly'].includes(result.tone) ? result.tone : 'neutral',
+      score:      typeof result.score === 'number' ? Math.min(100, Math.max(0, Math.round(result.score))) : 50,
       suggestion: typeof result.suggestion === 'string' ? result.suggestion : ''
     };
   } catch (err) {
-    console.error('analyzeTone:', err.message);
-    return { tone: 'neutral', score: 50, suggestion: '' };
+    console.error('analyzeTone error:', err.message);
+    return fallback;
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
 // 2. SMART REPLIES
-// ─────────────────────────────────────────────────────────────────
+// Returns: { replies: [string, string, string] }
+// ══════════════════════════════════════════════════════════════════
 const getSmartReplies = async (messages) => {
-  const convo  = formatMessages(messages.slice(-5));
-  const prompt = `You are a chat assistant. Based on this conversation:
+  const fallback = { replies: [] };
+  if (!messages?.length) return fallback;
 
+  const convo  = fmt(messages.slice(-5));
+  if (!convo.trim()) return fallback;
+
+  const prompt = `You are a helpful chat assistant. Read this conversation and suggest 3 short reply options for the last message.
+
+Conversation:
 ${convo}
 
-Suggest exactly 3 short, natural reply options for the last message.
-- Each reply should be under 10 words
-- Make them varied: one agreeable, one questioning, one adding info
-- Sound like a real human, not a bot
+Rules:
+- Each reply must be under 12 words
+- Sound natural, like a real person
+- Vary the style: one agreeable, one questioning, one informative
 
-Respond ONLY with this JSON:
-{"replies":["reply1","reply2","reply3"]}`;
+Respond ONLY with this exact JSON (no extra text):
+{"replies":["reply one","reply two","reply three"]}`;
 
   try {
-    const result = parseJSON(await callGemini(prompt));
-    return { replies: Array.isArray(result.replies) ? result.replies.slice(0, 3) : [] };
+    const raw    = await callGemini(prompt);
+    const result = extractJSON(raw);
+    const replies = Array.isArray(result.replies) ? result.replies.filter(Boolean).slice(0, 3) : [];
+    return { replies };
   } catch (err) {
-    console.error('getSmartReplies:', err.message);
-    return { replies: [] };
+    console.error('getSmartReplies error:', err.message);
+    return fallback;
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
-// 3. CATCH ME UP — SUMMARIZER  (Day 5 enhanced)
-// ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// 3. CATCH ME UP — SUMMARIZER
+// Returns: { summary, keyTopics, messageCount }
+// ══════════════════════════════════════════════════════════════════
 const summarizeRoom = async (messages) => {
-  const convo = formatMessages(messages);
-  if (!convo.trim()) return { summary: '', keyTopics: [], messageCount: 0 };
+  const fallback = { summary: '', keyTopics: [], messageCount: 0 };
+  if (!messages?.length) return fallback;
 
-  const messageCount = messages.filter((m) => m.type !== 'system').length;
+  const textMsgs = messages.filter((m) => m?.type !== 'system' && m?.content?.trim());
+  if (textMsgs.length === 0) return fallback;
 
-  const prompt = `You are a smart meeting assistant. Summarize this group chat conversation.
+  const convo = fmt(textMsgs);
+  const prompt = `Summarize this chat conversation. Respond ONLY with JSON.
 
-Chat messages:
+Chat:
 ${convo}
 
-Create a clear, useful summary with:
-- 3 to 5 bullet points using • symbol
-- Focus on: decisions made, questions asked, key info shared, action items
-- Each point should be 1 concise sentence
-- Use plain language, no jargon
+Instructions:
+- Write 3 to 5 bullet points using the bullet character •
+- Each bullet is one clear sentence about what was discussed, decided, or asked
+- Extract 2-3 short topic labels (2-3 words each)
 
-Also extract 3 key topics/themes as short labels (2-3 words each).
-
-Respond ONLY with this JSON (no markdown):
-{
-  "summary": "• point1\\n• point2\\n• point3",
-  "keyTopics": ["topic1", "topic2", "topic3"]
-}`;
+Respond ONLY with this exact JSON (no markdown, no extra text):
+{"summary":"• point one\\n• point two\\n• point three","keyTopics":["Topic One","Topic Two"]}`;
 
   try {
-    const result = parseJSON(await callGemini(prompt));
+    const raw    = await callGemini(prompt);
+    const result = extractJSON(raw);
     return {
       summary:      typeof result.summary === 'string' ? result.summary : '',
-      keyTopics:    Array.isArray(result.keyTopics) ? result.keyTopics.slice(0, 3) : [],
-      messageCount
+      keyTopics:    Array.isArray(result.keyTopics)    ? result.keyTopics.slice(0, 3) : [],
+      messageCount: textMsgs.length
     };
   } catch (err) {
-    console.error('summarizeRoom:', err.message);
-    return { summary: '', keyTopics: [], messageCount };
+    console.error('summarizeRoom error:', err.message);
+    return { ...fallback, messageCount: textMsgs.length };
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
-// 4. REAL-TIME TRANSLATION
-// ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// 4. TRANSLATION
+// Returns: { translated }
+// ══════════════════════════════════════════════════════════════════
 const translateMessage = async (message, targetLanguage) => {
-  const prompt = `Translate this chat message to ${targetLanguage}.
-Keep the tone, punctuation and casual style of the original.
-Only translate — do not explain or add notes.
+  const fallback = { translated: message };
+  if (!message?.trim() || !targetLanguage) return fallback;
 
-Message: "${message}"
+  const prompt = `Translate the following message to ${targetLanguage}.
+Keep the same tone and style. Output ONLY the translated text as a JSON object.
 
-Respond ONLY with this JSON:
-{"translated":"<translation>"}`;
+Message: "${message.trim()}"
+
+Respond ONLY with this exact JSON:
+{"translated":"<translation here>"}`;
 
   try {
-    const result = parseJSON(await callGemini(prompt));
+    const raw    = await callGemini(prompt);
+    const result = extractJSON(raw);
     return { translated: result.translated || message };
   } catch (err) {
-    console.error('translateMessage:', err.message);
-    return { translated: message };
+    console.error('translateMessage error:', err.message);
+    return fallback;
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
-// 5. CODE EXPLAINER  (Day 5 enhanced)
-// ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// 5. CODE EXPLAINER
+// Returns: { explanation }
+// ══════════════════════════════════════════════════════════════════
 const explainCode = async (code, language = 'javascript') => {
-  const prompt = `You are a senior ${language} developer explaining code to a teammate in a chat.
+  const fallback = { explanation: '' };
+  if (!code?.trim()) return fallback;
 
-Code to explain:
+  // Truncate very long code to avoid token limits
+  const truncated = code.length > 2000 ? code.slice(0, 2000) + '\n... (truncated)' : code;
+
+  const prompt = `Explain this ${language} code in 2-3 clear sentences for a developer.
+Focus on WHAT it does and any important patterns. Be concise.
+
+Code:
 \`\`\`${language}
-${code}
+${truncated}
 \`\`\`
 
-Write a clear explanation:
-- 2-3 sentences MAX
-- Start with "This code..." or "This function..." 
-- Mention what it does, any key patterns used, and anything noteworthy
-- Be concise — this shows inline under a chat message
-
-Respond ONLY with this JSON:
-{"explanation":"<your explanation here>"}`;
+Respond ONLY with this exact JSON (no markdown):
+{"explanation":"Your explanation here."}`;
 
   try {
-    const result = parseJSON(await callGemini(prompt));
+    const raw    = await callGemini(prompt);
+    const result = extractJSON(raw);
     return { explanation: result.explanation || '' };
   } catch (err) {
-    console.error('explainCode:', err.message);
-    return { explanation: '' };
+    console.error('explainCode error:', err.message);
+    return fallback;
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
 // 6. MOOD DETECTOR
-// ─────────────────────────────────────────────────────────────────
+// Returns: { mood, score }
+// ══════════════════════════════════════════════════════════════════
 const detectMood = async (messages) => {
-  const convo = formatMessages(messages.slice(-20));
-  if (!convo.trim()) return { mood: 'neutral', score: 50 };
+  const fallback = { mood: 'neutral', score: 50 };
+  if (!messages?.length) return fallback;
 
-  const prompt = `Analyze the overall emotional mood of this group chat.
+  const textMsgs = messages.filter((m) => m?.type !== 'system' && m?.content?.trim());
+  if (textMsgs.length < 2) return fallback;
+
+  const convo  = fmt(textMsgs.slice(-15));
+  if (!convo.trim()) return fallback;
+
+  const prompt = `Analyze the overall emotional mood of this group chat conversation.
 
 ${convo}
 
-Pick the best mood label:
-- "positive": happy, supportive, productive, fun
+Mood options:
+- "positive": happy, supportive, friendly, productive
 - "excited": high energy, enthusiastic, hyped
-- "neutral": calm, professional, factual
-- "tense": stressed, conflicted, argumentative
+- "neutral": calm, professional, informational
+- "tense": stressed, conflicted, disagreements
 - "negative": frustrated, unhappy, complaints
 
-Score 0-100 for how strongly the mood shows (100 = very intense).
+Score is 0-100 for how strongly the mood is felt.
 
-Respond ONLY with this JSON:
-{"mood":"positive|excited|neutral|tense|negative","score":0-100}`;
+Respond ONLY with this exact JSON:
+{"mood":"neutral","score":50}`;
 
   try {
-    const result = parseJSON(await callGemini(prompt));
-    const validMoods = ['positive', 'negative', 'neutral', 'tense', 'excited'];
+    const raw    = await callGemini(prompt);
+    const result = extractJSON(raw);
+    const valid  = ['positive','negative','neutral','tense','excited'];
     return {
-      mood:  validMoods.includes(result.mood) ? result.mood : 'neutral',
-      score: typeof result.score === 'number' ? Math.min(100, Math.max(0, result.score)) : 50
+      mood:  valid.includes(result.mood) ? result.mood : 'neutral',
+      score: typeof result.score === 'number' ? Math.min(100, Math.max(0, Math.round(result.score))) : 50
     };
   } catch (err) {
-    console.error('detectMood:', err.message);
-    return { mood: 'neutral', score: 50 };
+    console.error('detectMood error:', err.message);
+    return fallback;
   }
 };
 
