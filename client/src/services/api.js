@@ -67,3 +67,13 @@ export const getUnreadDMCount    = ()               => API.get('/api/conversatio
 
 // ─── Profile update ────────────────────────────────────────────────
 export const updateProfile = (data) => API.put('/api/auth/profile', data);
+
+// ─── Room management additions ─────────────────────────────────────
+export const getRoomDetails      = (id)          => API.get(`/api/rooms/${id}`);
+export const updateRoom          = (id, data)    => API.put(`/api/rooms/${id}`, data);
+export const previewRoomInvite   = (inviteCode)  => API.get(`/api/rooms/join/${inviteCode}`);
+export const joinRoomByInvite    = (inviteCode)  => API.post(`/api/rooms/join/${inviteCode}`);
+export const regenerateInvite    = (id)          => API.post(`/api/rooms/${id}/regenerate-invite`);
+export const leaveRoom           = (id)          => API.post(`/api/rooms/${id}/leave`);
+export const kickMember          = (id, userId)  => API.delete(`/api/rooms/${id}/members/${userId}`);
+export const checkAIHealth       = ()            => API.get('/api/ai/health');

@@ -14,14 +14,19 @@ import SummaryModal             from '../components/SummaryModal';
 import ConnectionBanner         from '../components/ConnectionBanner';
 import DirectChatWindow         from '../components/DirectChatWindow';
 import StartConversation        from '../components/StartConversation';
-import EditProfileModal        from '../components/EditProfileModal';
+import EditProfileModal         from '../components/EditProfileModal';
+import RoomSettings             from '../components/RoomSettings';
 
 const Chat = () => {
   const { user }                                               = useAuth();
   const { messages, setMessages, activeRoom, isReconnecting } = useSocket();
   const toast                                                  = useToast();
 
-  const { rooms, loading: roomsLoading, handleCreateRoom, handleSelectRoom } = useRooms(toast);
+  const {
+    rooms, loading: roomsLoading,
+    handleCreateRoom, handleSelectRoom,
+    handleJoinAndOpen, updateRoomInList, removeRoomFromList
+  } = useRooms(toast);
 
   const {
     analyzeTone, fetchSmartReplies,
@@ -37,11 +42,11 @@ const Chat = () => {
     sendDM, emitDMTyping, emitDMStopTyping,
   } = useConversations();
 
-  const [summaryOpen, setSummaryOpen] = useState(false);
-  const [showNewChat,    setShowNewChat]    = useState(false);
-  const [showEditProfile, setShowEditProfile] = useState(false);
-  const lastMoodCount                 = useRef(0);
-  const reconnectShown                = useRef(false);
+  const [summaryOpen,      setSummaryOpen]      = useState(false);
+  const [showNewChat,      setShowNewChat]      = useState(false);
+  const [showEditProfile,  setShowEditProfile]  = useState(false);
+  const [showRoomSettings, setShowRoomSettings] = useState(false);
+  const reconnectShown = useRef(false);
 
   // ── Reconnect toast ────────────────────────────────────────────
   useEffect(() => {
@@ -70,13 +75,12 @@ const Chat = () => {
     );
   }, [explanations]);
 
-  // ── Room select — also closes any open DM ──────────────────────
+  // ── Handlers ──────────────────────────────────────────────────
   const goToRoom = (room) => {
     closeConversation();
     handleSelectRoom(room);
   };
 
-  // ── Create room — switches to room panel ───────────────────────
   const handleCreateAndJoin = async (name, desc) => {
     try {
       const room = await handleCreateRoom(name, desc);
@@ -88,13 +92,11 @@ const Chat = () => {
     }
   };
 
-  // ── New DM started from StartConversation modal ────────────────
   const handleConversationStart = (conversation) => {
     setShowNewChat(false);
     openConversation(conversation);
   };
 
-  // ── Auto-translate helpers ─────────────────────────────────────
   const handleAutoTranslate = (message) => {
     if (!user?.language || user.language === 'en') return;
     autoTranslate(message, user.language);
@@ -113,9 +115,15 @@ const Chat = () => {
     summarize(textMsgs);
   };
 
-  const recentMessages = messages.filter((m) => m.type !== 'system').slice(-5);
+  const handleRoomLeft = () => {
+    if (activeRoom) removeRoomFromList(activeRoom._id);
+  };
 
-  // Panel visibility
+  const handleRoomUpdated = (updatedRoom) => {
+    updateRoomInList(updatedRoom);
+  };
+
+  const recentMessages = messages.filter((m) => m.type !== 'system').slice(-5);
   const showDM    = !!activeConversation;
   const showRoom  = !!activeRoom && !showDM;
   const showEmpty = !showDM && !showRoom;
@@ -123,20 +131,20 @@ const Chat = () => {
   return (
     <div className="flex flex-col h-screen bg-nt-bg overflow-hidden">
 
-      <Navbar onSummaryOpen={() => { setSummaryOpen(true); handleSummarize(); }} />
+      <Navbar
+        onSummaryOpen={() => { setSummaryOpen(true); handleSummarize(); }}
+        onRoomSettings={() => activeRoom && setShowRoomSettings(true)}
+      />
       <ConnectionBanner />
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Sidebar with Rooms + DMs tabs */}
         <Sidebar
-          /* Room props */
           rooms={rooms}
           roomsLoading={roomsLoading}
           onSelectRoom={goToRoom}
           onCreateRoom={handleCreateAndJoin}
           onLanguageChange={handleLanguageChange}
-          /* DM props */
           conversations={conversations}
           convLoading={convLoading}
           activeConvId={activeConversation?._id?.toString()}
@@ -146,10 +154,9 @@ const Chat = () => {
           onEditProfile={() => setShowEditProfile(true)}
         />
 
-        {/* Main content area */}
         <div className="flex-1 flex flex-col overflow-hidden bg-nt-bg relative">
 
-          {/* Private DM view */}
+          {/* Private DM */}
           {showDM && (
             <DirectChatWindow
               conversation={activeConversation}
@@ -161,7 +168,7 @@ const Chat = () => {
             />
           )}
 
-          {/* Group room view */}
+          {/* Group Room */}
           {showRoom && (
             <>
               <ChatWindow
@@ -181,7 +188,7 @@ const Chat = () => {
             </>
           )}
 
-          {/* Welcome / empty state */}
+          {/* Empty state */}
           {showEmpty && (
             <div className="flex-1 flex items-center justify-center animate-fade-in">
               <div className="text-center space-y-4 px-6 max-w-sm">
@@ -191,28 +198,22 @@ const Chat = () => {
                 <div>
                   <h2 className="text-xl font-bold text-nt-text">Welcome to NexTalk</h2>
                   <p className="text-nt-muted text-sm mt-1.5 leading-relaxed">
-                    Join a <strong className="text-nt-text">Room</strong> to chat in groups, or open a <strong className="text-nt-text">Direct Message</strong> using your NexTalk number for private conversations.
+                    Join a <strong className="text-nt-text">Room</strong> via invite link, or start a <strong className="text-nt-text">Direct Message</strong> using a NexTalk number.
                   </p>
                 </div>
-
-                {/* Show user's own number */}
                 {user?.nexTalkNumber && (
                   <div className="flex flex-col items-center gap-1">
                     <span className="text-xs text-nt-muted">Your NexTalk number:</span>
                     <div className="font-mono font-bold text-nt-blue text-lg tracking-widest px-4 py-2 rounded-xl bg-nt-blue/10 border border-nt-blue/25">
                       {user.nexTalkNumber.replace(/^(\+100)(\d{7})$/, '+100 $2')}
                     </div>
-                    <span className="text-xs text-nt-muted/60">Share this with friends so they can message you</span>
+                    <span className="text-xs text-nt-muted/60">Share with friends to receive messages</span>
                   </div>
                 )}
-
                 <div className="flex flex-wrap gap-2 justify-center pt-1">
-                  {['✨ Tone Analyzer', '⚡ Smart Replies', '🌐 Auto-Translate',
-                    '🔥 Mood Rooms', '📋 Catch Me Up', '💻 Code + AI Explain', '🔒 Private DMs'
-                  ].map((f) => (
-                    <span key={f} className="text-xs px-3 py-1.5 rounded-full bg-nt-surface border border-nt-border text-nt-muted">
-                      {f}
-                    </span>
+                  {['✨ Tone Analyzer','⚡ Smart Replies','🌐 Auto-Translate',
+                    '🔥 Mood Rooms','📋 Catch Me Up','💻 Code + AI Explain','🔒 Private DMs'].map((f) => (
+                    <span key={f} className="text-xs px-3 py-1.5 rounded-full bg-nt-surface border border-nt-border text-nt-muted">{f}</span>
                   ))}
                 </div>
               </div>
@@ -221,7 +222,9 @@ const Chat = () => {
         </div>
       </div>
 
-      {/* Catch Me Up modal */}
+      {/* ── Modals ────────────────────────────────────────────────── */}
+
+      {/* Catch Me Up */}
       <SummaryModal
         isOpen={summaryOpen}
         onClose={() => setSummaryOpen(false)}
@@ -232,17 +235,27 @@ const Chat = () => {
         onGenerate={handleSummarize}
       />
 
-      {/* Edit Profile modal */}
-      {showEditProfile && (
-        <EditProfileModal onClose={() => setShowEditProfile(false)} />
+      {/* Room settings */}
+      {showRoomSettings && activeRoom && (
+        <RoomSettings
+          room={activeRoom}
+          onClose={() => setShowRoomSettings(false)}
+          onLeft={handleRoomLeft}
+          onUpdated={handleRoomUpdated}
+        />
       )}
 
-      {/* New DM modal */}
+      {/* New DM */}
       {showNewChat && (
         <StartConversation
           onStart={handleConversationStart}
           onClose={() => setShowNewChat(false)}
         />
+      )}
+
+      {/* Edit profile */}
+      {showEditProfile && (
+        <EditProfileModal onClose={() => setShowEditProfile(false)} />
       )}
     </div>
   );
