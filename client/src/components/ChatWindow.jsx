@@ -4,12 +4,7 @@ import { useSocket }  from '../context/SocketContext';
 import MessageBubble  from './MessageBubble';
 import { ArrowDown }  from 'lucide-react';
 
-const ChatWindow = ({
-  onExplainCode, explainLoading,
-  onTranslate, onAutoTranslate,
-  translationLoading, translations = {},
-  userLanguage = 'en'
-}) => {
+const ChatWindow = ({ onExplainCode, explainLoading }) => {
   const { user }                              = useAuth();
   const { messages, typingUsers, activeRoom } = useSocket();
   const bottomRef                             = useRef(null);
@@ -43,13 +38,13 @@ const ChatWindow = ({
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-6 py-5">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center select-none">
-            <div className="w-16 h-16 rounded-2xl border flex items-center justify-center"
-                 style={{ background: 'rgba(255,239,178,0.06)', borderColor: '#025A50' }}>
-              <span className="text-2xl">#</span>
+            <div className="w-16 h-16 rounded-full border flex items-center justify-center text-2xl font-black"
+                 style={{ background: 'rgba(255,239,178,0.06)', borderColor: '#025A50', color: '#FFEFB2' }}>
+              {activeRoom.name?.[0]?.toUpperCase() || '#'}
             </div>
             <div>
               <p className="font-semibold text-sm" style={{ color: '#FFEFB2' }}>
-                Welcome to <span style={{ color: '#FFEFB2' }}>#{activeRoom.name}</span>
+                Welcome to <span style={{ color: '#FFEFB2' }}>{activeRoom.name}</span>
               </p>
               <p className="text-xs mt-1" style={{ color: '#7A9E99' }}>
                 {activeRoom.description || 'Be the first to say something!'}
@@ -60,10 +55,8 @@ const ChatWindow = ({
           messages.map((msg) => (
             <MessageBubble key={msg._id} msg={msg}
               isOwn={msg.sender?._id === user?._id || msg.sender?._id?.toString() === user?._id?.toString()}
-              onExplainCode={onExplainCode} isExplaining={explainLoading}
-              onTranslate={onTranslate} onAutoTranslate={onAutoTranslate}
-              translationLoading={translationLoading} translations={translations}
-              userLanguage={userLanguage}
+              onExplainCode={onExplainCode}
+              isExplaining={explainLoading}
             />
           ))
         )}

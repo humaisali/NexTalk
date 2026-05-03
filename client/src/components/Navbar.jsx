@@ -1,7 +1,7 @@
 import { useAuth }   from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import MoodIndicator from './MoodIndicator';
-import { WifiOff, RefreshCw, Zap, Settings, Phone, Video, Search, MoreHorizontal } from 'lucide-react';
+import { WifiOff, RefreshCw, Zap, Settings, Search, Users, MoreHorizontal } from 'lucide-react';
 
 const Navbar = ({ onSummaryOpen, onRoomSettings }) => {
   const { user }            = useAuth();
@@ -22,15 +22,16 @@ const Navbar = ({ onSummaryOpen, onRoomSettings }) => {
       <div className="flex items-center gap-3 flex-1 min-w-0">
         {isInRoom && (
           <>
-            <div className="w-10 h-10 rounded-nt flex items-center justify-center flex-shrink-0 border"
-                 style={{ background: 'rgba(255,239,178,0.1)', borderColor: '#025A50' }}>
-              <span className="text-sm font-bold" style={{ color: '#FFEFB2' }}>#</span>
+            {/* Group avatar — first letter */}
+            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 border text-sm font-bold"
+                 style={{ background: 'rgba(255,239,178,0.1)', borderColor: '#025A50', color: '#FFEFB2' }}>
+              {activeRoom.name?.[0]?.toUpperCase() || '#'}
             </div>
             <div className="min-w-0">
               <h2 className="font-bold text-sm truncate" style={{ color: '#FFEFB2' }}>{activeRoom.name}</h2>
-              {activeRoom.description && (
-                <p className="text-xs truncate" style={{ color: '#7A9E99' }}>{activeRoom.description}</p>
-              )}
+              <p className="text-xs" style={{ color: '#7A9E99' }}>
+                {onlineUsers.length} online · {activeRoom.members?.length || 0} members
+              </p>
             </div>
             <MoodIndicator compact />
           </>
@@ -38,7 +39,6 @@ const Navbar = ({ onSummaryOpen, onRoomSettings }) => {
 
         {isInDM && other && (
           <>
-            {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div className="w-10 h-10 rounded-full border flex items-center justify-center text-sm font-bold overflow-hidden"
                    style={{ background: 'linear-gradient(135deg, #FFEFB2, #F5DC6E)', borderColor: '#025A50', color: '#013E37' }}>
@@ -83,12 +83,10 @@ const Navbar = ({ onSummaryOpen, onRoomSettings }) => {
         ) : null}
 
         {(isInRoom || isInDM) && (
-          <>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
-                    style={{ background: 'rgba(255,239,178,0.08)', color: '#7A9E99' }}>
-              <Search size={15} />
-            </button>
-          </>
+          <button className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
+                  style={{ background: 'rgba(255,239,178,0.08)', color: '#7A9E99' }}>
+            <Search size={15} />
+          </button>
         )}
 
         {isInRoom && (
@@ -104,7 +102,7 @@ const Navbar = ({ onSummaryOpen, onRoomSettings }) => {
             <button onClick={onRoomSettings}
               className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
               style={{ background: 'rgba(255,239,178,0.08)', color: '#7A9E99' }}
-              title="Room settings">
+              title="Group settings">
               <Settings size={15} />
             </button>
           </>

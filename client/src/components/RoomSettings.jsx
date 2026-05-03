@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import useRoomSettings from '../hooks/useRoomSettings';
 import { useAuth }     from '../context/AuthContext';
 import { useToast }    from '../context/ToastContext';
-import { X, Link, RefreshCw, Copy, Settings, Users, Shield, LogOut, Trash2, Check, Lock, Unlock, Edit2, Save } from 'lucide-react';
+import { X, Link, RefreshCw, Copy, Settings, Users, LogOut, Trash2, Check, Lock, Unlock, Save, Shield } from 'lucide-react';
 
 const QRCode = ({ value, size = 160 }) => {
   const encoded = encodeURIComponent(value);
@@ -52,7 +52,7 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
   };
 
   const handleLeave = async () => {
-    if (!window.confirm('Leave this room?')) return;
+    if (!window.confirm('Leave this group?')) return;
     const ok = await leave(r._id);
     if (ok) { onLeft?.(); onClose(); }
   };
@@ -84,9 +84,15 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b"
              style={{ borderColor: '#025A50', background: '#013E37' }}>
-          <div>
-            <h3 className="text-base font-bold" style={{ color: '#FFEFB2' }}># {r?.name || 'Room Settings'}</h3>
-            <p className="text-xs mt-0.5" style={{ color: '#7A9E99' }}>{r?.members?.length || 0} members</p>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-base font-black"
+                 style={{ background: 'rgba(255,239,178,0.1)', color: '#FFEFB2', border: '1px solid rgba(255,239,178,0.2)' }}>
+              {r?.name?.[0]?.toUpperCase() || '#'}
+            </div>
+            <div>
+              <h3 className="text-base font-bold" style={{ color: '#FFEFB2' }}>{r?.name || 'Group Settings'}</h3>
+              <p className="text-xs mt-0.5" style={{ color: '#7A9E99' }}>{r?.members?.length || 0} members</p>
+            </div>
           </div>
           <button onClick={onClose} style={{ color: '#7A9E99' }}
                   onMouseEnter={(e) => e.currentTarget.style.color = '#FFEFB2'}
@@ -106,7 +112,6 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
           ))}
         </div>
 
-        {/* Loading */}
         {loading && (
           <div className="px-6 py-10 flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-t-primary rounded-full animate-spin"
@@ -124,7 +129,7 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
                   <div className="flex flex-col items-center gap-3">
                     <QRCode value={inviteUrl} size={160} />
                     <p className="text-xs text-center" style={{ color: '#7A9E99' }}>
-                      Scan to join <strong style={{ color: '#FFEFB2' }}>#{r?.name}</strong>
+                      Scan to join <strong style={{ color: '#FFEFB2' }}>{r?.name}</strong>
                     </p>
                   </div>
                 )}
@@ -154,7 +159,7 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
                 )}
                 <div className="p-3 rounded-nt border text-xs leading-relaxed"
                      style={{ background: 'rgba(255,239,178,0.04)', borderColor: '#025A50', color: '#7A9E99' }}>
-                  Share this link or QR code with any registered NexTalk user. They can join instantly.
+                  Share this link or QR code with any NexTalk user to invite them to the group.
                 </div>
               </div>
             )}
@@ -193,7 +198,7 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
                             {isCreator && (
                               <span className="text-xs px-1.5 py-0.5 rounded-md font-semibold"
                                     style={{ background: 'rgba(252,211,77,0.12)', color: '#FCD34D', border: '1px solid rgba(252,211,77,0.25)' }}>
-                                Owner
+                                Admin
                               </span>
                             )}
                             {isAdminM && !isCreator && <Shield size={11} style={{ color: '#60D4C8' }} />}
@@ -208,7 +213,7 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
                             style={{ color: '#7A9E99' }}
                             onMouseEnter={(e) => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.color = '#7A9E99'; e.currentTarget.style.background = 'transparent'; }}
-                            title="Remove from room">
+                            title="Remove from group">
                             <Trash2 size={13} />
                           </button>
                         )}
@@ -219,7 +224,7 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
                 {!(r?.createdBy?._id?.toString() === currentUserId || r?.createdBy?.toString() === currentUserId) && (
                   <button onClick={handleLeave}
                     className="btn-danger w-full mt-4 flex items-center justify-center gap-2 text-sm">
-                    <LogOut size={14} />Leave Room
+                    <LogOut size={14} />Leave Group
                   </button>
                 )}
               </div>
@@ -229,9 +234,9 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
             {tab === 'settings' && amAdmin && (
               <div className="px-6 py-5 space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: '#7A9E99' }}>Room Name</label>
+                  <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: '#7A9E99' }}>Group Name</label>
                   <input value={editName} onChange={(e) => setEditName(e.target.value)}
-                    placeholder="Room name" style={inputStyle}
+                    placeholder="Group name" style={inputStyle}
                     onFocus={(e) => e.target.style.borderBottomColor = '#FFEFB2'}
                     onBlur={(e)  => e.target.style.borderBottomColor = '#025A50'}
                   />
@@ -239,25 +244,23 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
                 <div>
                   <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: '#7A9E99' }}>Description</label>
                   <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)}
-                    placeholder="What is this room about?" rows={2}
+                    placeholder="What is this group about?" rows={2}
                     className="resize-none"
                     style={{ ...inputStyle, resize: 'none' }}
                     onFocus={(e) => e.target.style.borderBottomColor = '#FFEFB2'}
                     onBlur={(e)  => e.target.style.borderBottomColor = '#025A50'}
                   />
                 </div>
-
-                {/* Privacy toggle */}
                 <div className="flex items-center justify-between p-3 rounded-nt border"
                      style={{ background: 'rgba(255,239,178,0.04)', borderColor: '#025A50' }}>
                   <div className="flex items-center gap-2">
                     {editPriv ? <Lock size={14} style={{ color: '#60D4C8' }} /> : <Unlock size={14} style={{ color: '#7A9E99' }} />}
                     <div>
                       <p className="text-sm font-medium" style={{ color: '#FFEFB2' }}>
-                        {editPriv ? 'Private — Invite only' : 'Public'}
+                        {editPriv ? 'Invite only' : 'Open to anyone'}
                       </p>
                       <p className="text-xs" style={{ color: '#7A9E99' }}>
-                        {editPriv ? 'Users need your invite link' : 'Anyone can join'}
+                        {editPriv ? 'Members need an invite link' : 'Anyone can join'}
                       </p>
                     </div>
                   </div>
@@ -268,12 +271,11 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
                          style={{ background: editPriv ? '#013E37' : '#7A9E99', left: editPriv ? '1.25rem' : '0.25rem' }} />
                   </button>
                 </div>
-
                 <button onClick={handleSave} disabled={saving || !editName.trim()}
                   className="btn-primary w-full flex items-center justify-center gap-2">
                   {saving
                     ? <><div className="w-4 h-4 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />Saving…</>
-                    : <><Save size={14} />Save Settings</>
+                    : <><Save size={14} />Save Changes</>
                   }
                 </button>
               </div>

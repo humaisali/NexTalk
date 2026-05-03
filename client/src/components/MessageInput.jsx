@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useSocket }    from '../context/SocketContext';
 import ToneAnalyzer     from './ToneAnalyzer';
-import SmartReplies     from './SmartReplies';
 import CodePreview      from './CodePreview';
 import useTyping        from '../hooks/useTyping';
 import useCodeShare     from '../hooks/useCodeShare';
@@ -29,7 +28,7 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
   const toneTimerRef   = useRef(null);
   const repliesFetched = useRef(false);
 
-  const charCount  = input.length;
+  const charCount   = input.length;
   const isOverLimit = charCount > MAX_CHARS;
 
   const resize = () => {
@@ -162,19 +161,17 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
       {/* Error */}
       {sendError && <p className="text-xs px-1" style={{ color: '#F87171' }}>{sendError}</p>}
 
-      {/* Main input area — like Image 1 bottom */}
+      {/* Main input */}
       <div className="rounded-nt border transition-all duration-200"
            style={{
              background: '#011F1B',
              borderColor: isOverLimit ? '#F87171' : isCodeMode ? 'rgba(96,212,200,0.4)' : '#025A50'
            }}>
-
-        {/* Textarea */}
         <div className="px-4 pt-3">
           <textarea
             ref={textareaRef} rows={1} value={input}
             onChange={handleChange} onKeyDown={handleKeyDown} onFocus={handleFocus}
-            placeholder={isCodeMode ? `Paste your ${codeLanguage} code…` : `Send to #${activeRoom.name}… (Shift+Enter for new line)`}
+            placeholder={isCodeMode ? `Paste your ${codeLanguage} code…` : `Message ${activeRoom.name}…`}
             className="w-full bg-transparent text-sm resize-none outline-none leading-relaxed min-h-[24px] max-h-36"
             style={{
               color: isOverLimit ? '#F87171' : '#FFEFB2',
@@ -184,26 +181,17 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
           />
         </div>
 
-        {/* Toolbar row — like Image 1 bottom toolbar */}
+        {/* Toolbar */}
         <div className="flex items-center justify-between px-3 py-2 mt-1">
-          {/* Left formatting tools */}
           <div className="flex items-center gap-1">
             <button onClick={toggleCodeMode} title="Code mode"
               className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-              style={{
-                background: isCodeMode ? 'rgba(96,212,200,0.15)' : 'transparent',
-                color: isCodeMode ? '#60D4C8' : '#7A9E99'
-              }}
+              style={{ background: isCodeMode ? 'rgba(96,212,200,0.15)' : 'transparent', color: isCodeMode ? '#60D4C8' : '#7A9E99' }}
               onMouseEnter={(e) => !isCodeMode && (e.currentTarget.style.color = '#D4C98A')}
               onMouseLeave={(e) => !isCodeMode && (e.currentTarget.style.color = '#7A9E99')}>
               <Code size={14} />
             </button>
-
-            {[
-              { icon: Bold,   title: 'Bold'   },
-              { icon: Italic, title: 'Italic' },
-              { icon: List,   title: 'List'   },
-            ].map(({ icon: Icon, title }) => (
+            {[{ icon: Bold, title: 'Bold' }, { icon: Italic, title: 'Italic' }, { icon: List, title: 'List' }].map(({ icon: Icon, title }) => (
               <button key={title} title={title}
                 className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
                 style={{ color: '#7A9E99' }}
@@ -214,7 +202,6 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
             ))}
           </div>
 
-          {/* Right — char count + send */}
           <div className="flex items-center gap-2">
             {charCount > MAX_CHARS * 0.7 && (
               <span className="text-xs tabular-nums"
@@ -234,8 +221,8 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-95"
               style={{
                 background: input.trim() && !isOverLimit && isConnected ? '#FFEFB2' : 'rgba(255,239,178,0.1)',
-                color: input.trim() && !isOverLimit && isConnected ? '#013E37' : '#7A9E99',
-                cursor: input.trim() && !isOverLimit && isConnected ? 'pointer' : 'not-allowed'
+                color:      input.trim() && !isOverLimit && isConnected ? '#013E37' : '#7A9E99',
+                cursor:     input.trim() && !isOverLimit && isConnected ? 'pointer' : 'not-allowed'
               }}>
               <Send size={13} />
               <span className="hidden sm:inline">Send</span>
@@ -244,7 +231,6 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
         </div>
       </div>
 
-      {/* Hint */}
       <p className="text-center text-xs" style={{ color: 'rgba(122,158,153,0.5)' }}>
         {isCodeMode ? 'AI will auto-explain your code for everyone' : 'Enter to send · Shift+Enter for new line'}
       </p>

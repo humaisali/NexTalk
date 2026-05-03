@@ -1,7 +1,4 @@
-import { useState, useEffect } from 'react';
-import { useAuth }   from '../context/AuthContext';
-import CodeBlock     from './CodeBlock';
-import { Globe, ChevronDown, ChevronUp, Loader } from 'lucide-react';
+import CodeBlock from './CodeBlock';
 
 const TONE_CONFIG = {
   aggressive: { label: 'Aggressive', color: '#F87171',  bg: 'rgba(248,113,113,0.12)',  border: 'rgba(248,113,113,0.3)'  },
@@ -12,29 +9,9 @@ const TONE_CONFIG = {
 const MessageBubble = ({
   msg, isOwn,
   onExplainCode, isExplaining,
-  onTranslate, onAutoTranslate,
-  translationLoading, translations = {},
-  userLanguage = 'en'
 }) => {
-  const { user }  = useAuth();
-  const [showTrans, setShowTrans] = useState(false);
-
-  useEffect(() => {
-    if (!isOwn && msg.type === 'text' && userLanguage && userLanguage !== 'en') {
-      onAutoTranslate?.(msg);
-    }
-  }, [msg._id, userLanguage]);
-
-  useEffect(() => {
-    if (translations[msg._id] && !showTrans && !isOwn) setShowTrans(true);
-  }, [translations[msg._id]]);
-
-  const time        = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const tone        = msg.tone ? TONE_CONFIG[msg.tone] : null;
-  const translated  = translations[msg._id];
-  const isTranslating = translationLoading === msg._id;
-
-  const showTranslateControls = !isOwn && msg.type === 'text' && userLanguage && userLanguage !== 'en';
+  const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const tone = msg.tone ? TONE_CONFIG[msg.tone] : null;
 
   if (msg.type === 'system') {
     return (
@@ -70,7 +47,7 @@ const MessageBubble = ({
           </div>
         )}
 
-        {/* Tone badge (own messages) */}
+        {/* Tone badge (own messages only) */}
         {isOwn && tone && (
           <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border self-end"
                style={{ color: tone.color, background: tone.bg, borderColor: tone.border }}>
@@ -97,38 +74,9 @@ const MessageBubble = ({
           </div>
         )}
 
-        {/* Meta row */}
-        <div className={`flex items-center gap-2 px-1 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
-          {isOwn && <span className="text-xs" style={{ color: '#7A9E99' }}>{time}</span>}
-
-          {showTranslateControls && (
-            <button
-              onClick={() => {
-                if (!translated && !isTranslating) onTranslate?.(msg._id, msg.content, userLanguage);
-                setShowTrans(!showTrans);
-              }}
-              className="flex items-center gap-1 text-xs transition-colors"
-              style={{ color: '#7A9E99' }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#60D4C8'}
-              onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}
-            >
-              {isTranslating ? <Loader size={10} className="animate-spin" /> : <Globe size={10} />}
-              <span>{isTranslating ? 'Translating…' : 'Translate'}</span>
-              {translated && !isTranslating && (showTrans ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
-            </button>
-          )}
-        </div>
-
-        {/* Translation bubble */}
-        {showTrans && (translated || isTranslating) && (
-          <div className="px-3 py-2 rounded-xl text-xs border leading-relaxed max-w-xs"
-               style={{ borderColor: 'rgba(96,212,200,0.25)', background: 'rgba(96,212,200,0.05)', color: '#7A9E99' }}>
-            <div className="flex items-center gap-1 mb-1">
-              <Globe size={10} style={{ color: '#60D4C8' }} />
-              <span className="font-semibold uppercase text-xs" style={{ color: '#60D4C8' }}>{userLanguage}</span>
-            </div>
-            {isTranslating ? <span className="italic">Translating…</span> : <p>{translated}</p>}
-          </div>
+        {/* Timestamp for own messages */}
+        {isOwn && (
+          <span className="text-xs px-1" style={{ color: '#7A9E99' }}>{time}</span>
         )}
       </div>
     </div>
