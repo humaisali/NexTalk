@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth }          from '../context/AuthContext';
 import { useToast }         from '../context/ToastContext';
 import { previewRoomInvite, joinRoomByInvite } from '../services/api';
-import { Users, Lock, ArrowRight, Check, MessageSquare, Hash } from 'lucide-react';
+import { Users, Lock, ArrowRight, Check, MessageSquare } from 'lucide-react';
 
 const JoinRoom = () => {
   const { code }   = useParams();
@@ -33,10 +33,10 @@ const JoinRoom = () => {
     setJoining(true);
     try {
       await joinRoomByInvite(code);
-      toast.success(`Joined #${preview.room.name}!`);
+      toast.success(`Joined "${preview.room.name}"!`);
       navigate('/chat');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to join room.');
+      toast.error(err.response?.data?.message || 'Failed to join group.');
     } finally { setJoining(false); }
   };
 
@@ -66,10 +66,10 @@ const JoinRoom = () => {
           <h2 className="text-3xl font-bold text-primary leading-snug">
             You've been<br />
             <span className="text-primary/70">invited to join</span><br />
-            a room.
+            a group.
           </h2>
           <p className="mt-4 text-nt-info/70 text-sm leading-relaxed max-w-xs">
-            NexTalk rooms are invite-only spaces for real-time AI-powered collaboration.
+            NexTalk groups are invite-only spaces for real-time AI-powered collaboration.
           </p>
         </div>
 
@@ -102,7 +102,7 @@ const JoinRoom = () => {
               <div className="text-center py-10 px-6">
                 <div className="w-14 h-14 rounded-2xl border flex items-center justify-center mx-auto mb-4"
                      style={{ background: 'rgba(248,113,113,0.1)', borderColor: 'rgba(248,113,113,0.25)' }}>
-                  <Hash size={24} style={{ color: '#F87171' }} />
+                  <span className="text-2xl font-black" style={{ color: '#F87171' }}>!</span>
                 </div>
                 <h2 className="text-lg font-bold mb-2" style={{ color: '#FFEFB2' }}>Invalid Invite</h2>
                 <p className="text-sm mb-6" style={{ color: '#7A9E99' }}>{error}</p>
@@ -110,14 +110,14 @@ const JoinRoom = () => {
               </div>
             ) : preview ? (
               <div>
-                {/* Room info header */}
+                {/* Group info header */}
                 <div className="px-6 py-5 border-b text-center" style={{ borderColor: '#025A50', background: '#013E37' }}>
-                  <div className="w-16 h-16 rounded-2xl border flex items-center justify-center mx-auto mb-3"
-                       style={{ background: 'rgba(255,239,178,0.1)', borderColor: 'rgba(255,239,178,0.2)' }}>
-                    <Hash size={28} style={{ color: '#FFEFB2' }} />
+                  <div className="w-16 h-16 rounded-full border flex items-center justify-center mx-auto mb-3 text-2xl font-black"
+                       style={{ background: 'rgba(255,239,178,0.1)', borderColor: 'rgba(255,239,178,0.2)', color: '#FFEFB2' }}>
+                    {preview.room.name?.[0]?.toUpperCase() || '#'}
                   </div>
                   <p className="text-xs uppercase tracking-widest mb-1" style={{ color: '#7A9E99' }}>You've been invited to</p>
-                  <h2 className="text-xl font-bold" style={{ color: '#FFEFB2' }}>#{preview.room.name}</h2>
+                  <h2 className="text-xl font-bold" style={{ color: '#FFEFB2' }}>{preview.room.name}</h2>
                   {preview.room.description && (
                     <p className="text-sm mt-1" style={{ color: '#7A9E99' }}>{preview.room.description}</p>
                   )}
@@ -131,7 +131,7 @@ const JoinRoom = () => {
                     </div>
                     {preview.room.isPrivate && (
                       <div className="flex items-center gap-1.5 text-sm" style={{ color: '#7A9E99' }}>
-                        <Lock size={14} /><span>Private</span>
+                        <Lock size={14} /><span>Invite only</span>
                       </div>
                     )}
                   </div>
@@ -145,7 +145,7 @@ const JoinRoom = () => {
                     <div className="space-y-3">
                       <div className="p-3 rounded-nt border text-xs text-center"
                            style={{ background: 'rgba(255,239,178,0.04)', borderColor: '#025A50', color: '#7A9E99' }}>
-                        You need a NexTalk account to join this room.
+                        You need a NexTalk account to join this group.
                       </div>
                       <Link to="/register" className="btn-primary w-full flex items-center justify-center gap-2 text-sm">
                         Create Account & Join <ArrowRight size={14} />
@@ -163,8 +163,8 @@ const JoinRoom = () => {
                         {joining
                           ? <><div className="w-4 h-4 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />Joining…</>
                           : preview.alreadyMember
-                          ? <><Check size={15} />Already a member — Go to room</>
-                          : <>Join #{preview.room.name} <ArrowRight size={15} /></>
+                          ? <><Check size={15} />Already a member — Open group</>
+                          : <>Join {preview.room.name} <ArrowRight size={15} /></>
                         }
                       </button>
                       <p className="text-center text-xs" style={{ color: '#7A9E99' }}>

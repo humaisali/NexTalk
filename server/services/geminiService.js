@@ -7,7 +7,7 @@ const getModel = () => {
   return genAI.getGenerativeModel({
     model: 'gemini-1.5-flash',
     generationConfig: {
-      temperature:     0.3,   // lower = more consistent JSON output
+      temperature:     0.3,
       topP:            0.8,
       maxOutputTokens: 1024,
     }
@@ -15,24 +15,15 @@ const getModel = () => {
 };
 
 // ─── Robust JSON extractor ─────────────────────────────────────────
-// Handles: raw JSON, ```json blocks, JSON buried in prose
 const extractJSON = (text) => {
   if (!text) throw new Error('Empty response from Gemini');
-
-  // 1. Try to parse directly
   try { return JSON.parse(text.trim()); } catch {}
-
-  // 2. Strip markdown fences
   const stripped = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
   try { return JSON.parse(stripped); } catch {}
-
-  // 3. Extract first {...} block
   const match = stripped.match(/\{[\s\S]*\}/);
   if (match) {
     try { return JSON.parse(match[0]); } catch {}
   }
-
-  // 4. Give up — log the raw text for debugging
   console.error('Gemini raw (unparseable):', text.substring(0, 300));
   throw new Error('Could not parse JSON from Gemini response');
 };
@@ -107,7 +98,7 @@ const getSmartReplies = async (messages) => {
   const fallback = { replies: [] };
   if (!messages?.length) return fallback;
 
-  const convo  = fmt(messages.slice(-5));
+  const convo = fmt(messages.slice(-5));
   if (!convo.trim()) return fallback;
 
   const prompt = `You are a helpful chat assistant. Read this conversation and suggest 3 short reply options for the last message.
@@ -174,40 +165,13 @@ Respond ONLY with this exact JSON (no markdown, no extra text):
 };
 
 // ══════════════════════════════════════════════════════════════════
-// 4. TRANSLATION
-// Returns: { translated }
-// ══════════════════════════════════════════════════════════════════
-const translateMessage = async (message, targetLanguage) => {
-  const fallback = { translated: message };
-  if (!message?.trim() || !targetLanguage) return fallback;
-
-  const prompt = `Translate the following message to ${targetLanguage}.
-Keep the same tone and style. Output ONLY the translated text as a JSON object.
-
-Message: "${message.trim()}"
-
-Respond ONLY with this exact JSON:
-{"translated":"<translation here>"}`;
-
-  try {
-    const raw    = await callGemini(prompt);
-    const result = extractJSON(raw);
-    return { translated: result.translated || message };
-  } catch (err) {
-    console.error('translateMessage error:', err.message);
-    return fallback;
-  }
-};
-
-// ══════════════════════════════════════════════════════════════════
-// 5. CODE EXPLAINER
+// 4. CODE EXPLAINER
 // Returns: { explanation }
 // ══════════════════════════════════════════════════════════════════
 const explainCode = async (code, language = 'javascript') => {
   const fallback = { explanation: '' };
   if (!code?.trim()) return fallback;
 
-  // Truncate very long code to avoid token limits
   const truncated = code.length > 2000 ? code.slice(0, 2000) + '\n... (truncated)' : code;
 
   const prompt = `Explain this ${language} code in 2-3 clear sentences for a developer.
@@ -232,7 +196,7 @@ Respond ONLY with this exact JSON (no markdown):
 };
 
 // ══════════════════════════════════════════════════════════════════
-// 6. MOOD DETECTOR
+// 5. MOOD DETECTOR
 // Returns: { mood, score }
 // ══════════════════════════════════════════════════════════════════
 const detectMood = async (messages) => {
@@ -242,7 +206,7 @@ const detectMood = async (messages) => {
   const textMsgs = messages.filter((m) => m?.type !== 'system' && m?.content?.trim());
   if (textMsgs.length < 2) return fallback;
 
-  const convo  = fmt(textMsgs.slice(-15));
+  const convo = fmt(textMsgs.slice(-15));
   if (!convo.trim()) return fallback;
 
   const prompt = `Analyze the overall emotional mood of this group chat conversation.
@@ -275,4 +239,4 @@ Respond ONLY with this exact JSON:
   }
 };
 
-module.exports = { analyzeTone, getSmartReplies, summarizeRoom, translateMessage, explainCode, detectMood };
+module.exports = { analyzeTone, getSmartReplies, summarizeRoom, explainCode, detectMood };

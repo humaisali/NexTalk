@@ -3,10 +3,8 @@ import {
   analyzeTone     as apiTone,
   getSmartReplies as apiReplies,
   summarizeRoom   as apiSummarize,
-  translateMsg    as apiTranslate,
   explainCode     as apiExplain,
   getRoomMood     as apiMood,
-  batchTranslate  as apiBatchTranslate
 } from '../services/api';
 
 const useAI = () => {
@@ -49,44 +47,7 @@ const useAI = () => {
     finally { setSummaryLoading(false); }
   }, []);
 
-  // ── 4. Translation ──────────────────────────────────────────────
-  const [translations,       setTranslations]      = useState({});
-  const [translationLoading, setTranslationLoading] = useState(null);
-
-  const translateMessage = useCallback(async (messageId, content, targetLanguage) => {
-    if (!targetLanguage || targetLanguage === 'en') return;
-    setTranslationLoading(messageId);
-    try {
-      const { data } = await apiTranslate(content, targetLanguage);
-      if (data.translated) setTranslations((prev) => ({ ...prev, [messageId]: data.translated }));
-    } catch { /* silent */ }
-    finally { setTranslationLoading(null); }
-  }, []);
-
-  // Day 6: auto-translate a single message object
-  const autoTranslate = useCallback(async (message, targetLanguage) => {
-    if (!targetLanguage || targetLanguage === 'en') return;
-    if (!message?._id || !message?.content)        return;
-    if (translations[message._id])                 return; // cached
-    await translateMessage(message._id, message.content, targetLanguage);
-  }, [translateMessage, translations]);
-
-  // Day 6: batch translate all messages on room join
-  const batchTranslateRoom = useCallback(async (messages, targetLanguage) => {
-    if (!targetLanguage || targetLanguage === 'en' || !messages?.length) return;
-    const toTranslate = messages
-      .filter((m) => m.type === 'text' && !translations[m._id])
-      .slice(-10);
-    if (!toTranslate.length) return;
-    try {
-      const { data } = await apiBatchTranslate(toTranslate, targetLanguage);
-      if (data.translations) {
-        setTranslations((prev) => ({ ...prev, ...data.translations }));
-      }
-    } catch { /* silent */ }
-  }, [translations]);
-
-  // ── 5. Code Explainer ───────────────────────────────────────────
+  // ── 4. Code Explainer ───────────────────────────────────────────
   const [explanations,   setExplanations]  = useState({});
   const [explainLoading, setExplainLoading] = useState(null);
 
@@ -99,9 +60,9 @@ const useAI = () => {
     finally { setExplainLoading(null); }
   }, []);
 
-  // ── 6. Mood ─────────────────────────────────────────────────────
+  // ── 5. Mood ─────────────────────────────────────────────────────
   const [moodLoading, setMoodLoading] = useState(false);
-  const detectMood = useCallback(async (messages, roomId) => {
+  const detectMood = useCallback(async (messages) => {
     if (!messages?.length || messages.length < 3) return null;
     setMoodLoading(true);
     try { const { data } = await apiMood(messages); return data; }
@@ -113,9 +74,8 @@ const useAI = () => {
     toneLoading, analyzeTone,
     repliesLoading, fetchSmartReplies,
     summary, keyTopics, messageCount, summaryLoading, summarize,
-    translations, translationLoading, translateMessage, autoTranslate, batchTranslateRoom,
     explanations, explainLoading, explainCode,
-    moodLoading, detectMood
+    moodLoading, detectMood,
   };
 };
 

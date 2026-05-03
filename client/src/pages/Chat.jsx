@@ -25,14 +25,13 @@ const Chat = () => {
 
   const {
     rooms, loading: roomsLoading,
-    handleCreateRoom, handleSelectRoom,
-    handleJoinAndOpen, updateRoomInList, removeRoomFromList
+    handleCreateRoom, handleSelectRoom, handleJoinByCode,
+    handleJoinAndOpen, updateRoomInList, removeRoomFromList,
   } = useRooms(toast);
 
   const {
     analyzeTone, fetchSmartReplies,
     summary, keyTopics, messageCount, summaryLoading, summarize,
-    translations, translationLoading, translateMessage, autoTranslate, batchTranslateRoom,
     explanations, explainLoading, explainCode,
   } = useAI();
 
@@ -62,13 +61,6 @@ const Chat = () => {
     }
   }, [isReconnecting]);
 
-  // ── Batch translate on room load ───────────────────────────────
-  useEffect(() => {
-    if (!activeRoom || !user?.language || user.language === 'en') return;
-    const textMsgs = messages.filter((m) => m.type === 'text');
-    if (textMsgs.length > 0) batchTranslateRoom(textMsgs, user.language);
-  }, [activeRoom?._id]);
-
   // ── Patch code explanations into messages ──────────────────────
   useEffect(() => {
     if (!Object.keys(explanations).length) return;
@@ -86,7 +78,18 @@ const Chat = () => {
       closeConversation();
       handleSelectRoom(room);
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to create room.');
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to create group.');
+      throw err;
+    }
+  };
+
+  // Join group via invite link/code entered in sidebar
+  const handleJoinGroup = async (input) => {
+    try {
+      closeConversation();
+      await handleJoinByCode(input);
+    } catch (err) {
+      // Rethrow so Sidebar can show the error message inline
       throw err;
     }
   };
@@ -94,18 +97,6 @@ const Chat = () => {
   const handleConversationStart = (conversation) => {
     setShowNewChat(false);
     openConversation(conversation);
-  };
-
-  const handleAutoTranslate = (message) => {
-    if (!user?.language || user.language === 'en') return;
-    autoTranslate(message, user.language);
-  };
-
-  const handleLanguageChange = (newLang) => {
-    if (!newLang || newLang === 'en') return;
-    const textMsgs = messages.filter((m) => m.type === 'text');
-    if (textMsgs.length > 0) batchTranslateRoom(textMsgs, newLang);
-    toast.info(`Auto-translating to ${newLang.toUpperCase()}`);
   };
 
   const handleSummarize = () => {
@@ -132,16 +123,16 @@ const Chat = () => {
       />
       <ConnectionBanner />
 
-      {/* 3-column layout like Image 1 */}
+      {/* 3-column layout */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Column 1 — Sidebar (left) */}
+        {/* Column 1 — Sidebar */}
         <Sidebar
           rooms={rooms}
           roomsLoading={roomsLoading}
           onSelectRoom={goToRoom}
           onCreateRoom={handleCreateAndJoin}
-          onLanguageChange={handleLanguageChange}
+          onJoinRoom={handleJoinGroup}
           conversations={conversations}
           convLoading={convLoading}
           activeConvId={activeConversation?._id?.toString()}
@@ -151,7 +142,7 @@ const Chat = () => {
           onEditProfile={() => setShowEditProfile(true)}
         />
 
-        {/* Column 2 — Main chat area */}
+        {/* Column 2 — Main chat */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0"
              style={{ background: '#011F1B' }}>
 
@@ -167,17 +158,12 @@ const Chat = () => {
             />
           )}
 
-          {/* Group room */}
+          {/* Group chat */}
           {showRoom && (
             <>
               <ChatWindow
                 onExplainCode={(id, code, lang) => explainCode(id, code, lang)}
                 explainLoading={explainLoading}
-                onTranslate={(id, content, lang) => translateMessage(id, content, lang)}
-                onAutoTranslate={handleAutoTranslate}
-                translationLoading={translationLoading}
-                translations={translations}
-                userLanguage={user?.language || 'en'}
               />
               <MessageInput
                 recentMessages={recentMessages}
@@ -191,7 +177,6 @@ const Chat = () => {
           {showEmpty && (
             <div className="flex-1 flex items-center justify-center animate-fade-in">
               <div className="text-center space-y-5 px-6 max-w-sm">
-                {/* Dummy logo placeholder */}
                 <div className="w-20 h-20 rounded-2xl border-2 flex items-center justify-center mx-auto"
                      style={{ background: 'linear-gradient(135deg, #FFEFB2, #F5DC6E)', borderColor: 'rgba(255,239,178,0.3)' }}>
                   <span className="text-4xl font-black" style={{ color: '#013E37' }}>N</span>
@@ -199,12 +184,12 @@ const Chat = () => {
                 <div>
                   <h2 className="text-xl font-bold" style={{ color: '#FFEFB2' }}>Welcome to NexTalk</h2>
                   <p className="text-sm mt-2 leading-relaxed" style={{ color: '#7A9E99' }}>
-                    Select a <strong style={{ color: '#D4C98A' }}>Room</strong> to join the conversation,
-                    or start a <strong style={{ color: '#D4C98A' }}>Direct Message</strong> using a NexTalk number.
+                    Select a <strong style={{ color: '#D4C98A' }}>Group</strong> from the sidebar to start chatting,
+                    or open a <strong style={{ color: '#D4C98A' }}>Direct Message</strong> using a NexTalk number.
                   </p>
                 </div>
 
-                {/* User's NexTalk number */}
+                {/* NexTalk number */}
                 {user?.nexTalkNumber && (
                   <div className="rounded-nt border p-3 text-center"
                        style={{ background: 'rgba(255,239,178,0.06)', borderColor: '#025A50' }}>
@@ -212,13 +197,15 @@ const Chat = () => {
                     <p className="font-mono font-bold text-lg tracking-widest" style={{ color: '#FFEFB2' }}>
                       {user.nexTalkNumber.replace(/^(\+100)(\d{7})$/, '+100 $2')}
                     </p>
-                    <p className="text-xs mt-1" style={{ color: 'rgba(122,158,153,0.5)' }}>Share this with friends so they can message you</p>
+                    <p className="text-xs mt-1" style={{ color: 'rgba(122,158,153,0.5)' }}>
+                      Share this with friends so they can message you directly
+                    </p>
                   </div>
                 )}
 
                 {/* Feature chips */}
                 <div className="flex flex-wrap gap-2 justify-center">
-                  {['Tone Analyzer','Smart Replies','Auto-Translate','Mood Rooms','Catch Me Up','Code + AI Explain','Private DMs'].map((f) => (
+                  {['Tone Analyzer','Smart Replies','Mood Rooms','Catch Me Up','Code + AI Explain','Private DMs','Group Chat'].map((f) => (
                     <span key={f} className="text-xs px-3 py-1.5 rounded-full border"
                           style={{ background: 'rgba(255,239,178,0.05)', borderColor: '#025A50', color: '#7A9E99' }}>
                       {f}
@@ -230,7 +217,7 @@ const Chat = () => {
           )}
         </div>
 
-        {/* Column 3 — Info Panel (right, like Image 1) */}
+        {/* Column 3 — Info Panel */}
         {(showRoom || showDM) && showInfoPanel && (
           <RoomInfoPanel
             room={showRoom ? activeRoom : null}
@@ -241,7 +228,7 @@ const Chat = () => {
         )}
       </div>
 
-      {/* ── Modals ────────────────────────────────────────────────── */}
+      {/* ── Modals ─────────────────────────────────────────────── */}
       <SummaryModal
         isOpen={summaryOpen}
         onClose={() => setSummaryOpen(false)}
