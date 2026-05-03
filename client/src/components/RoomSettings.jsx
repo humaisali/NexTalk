@@ -2,61 +2,30 @@ import { useState, useEffect, useRef } from 'react';
 import useRoomSettings from '../hooks/useRoomSettings';
 import { useAuth }     from '../context/AuthContext';
 import { useToast }    from '../context/ToastContext';
-import {
-  FiX, FiLink, FiRefreshCw, FiCopy, FiSettings,
-  FiUsers, FiShield, FiLogOut, FiTrash2, FiCheck,
-  FiLock, FiUnlock, FiEdit2, FiSave
-} from 'react-icons/fi';
+import { X, Link, RefreshCw, Copy, Settings, Users, Shield, LogOut, Trash2, Check, Lock, Unlock, Edit2, Save } from 'lucide-react';
 
-// ── Tiny inline QR generator using a public API ──────────────────
-// No library needed — Google Charts QR API is free and reliable
-const QRCode = ({ value, size = 180 }) => {
+const QRCode = ({ value, size = 160 }) => {
   const encoded = encodeURIComponent(value);
   const src     = `https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${encoded}&choe=UTF-8&chld=M|2`;
   return (
-    <img
-      src={src}
-      alt="QR Code"
-      width={size}
-      height={size}
-      className="rounded-xl border border-nt-border"
-    />
+    <div className="p-3 rounded-nt border" style={{ background: '#FFEFB2', borderColor: '#025A50', display: 'inline-block' }}>
+      <img src={src} alt="QR Code" width={size} height={size} className="block" />
+    </div>
   );
 };
 
-/**
- * RoomSettings — room management modal.
- *
- * Tabs: Invite | Members | Settings
- *
- * Props:
- *   room     — current room object (minimal, from socket context)
- *   onClose  — fn()
- *   onLeft   — fn() called when user leaves room
- *   onUpdated — fn(updatedRoom) called when room name/desc changes
- */
 const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
   const { user }  = useAuth();
   const toast     = useToast();
-  const {
-    roomDetails, inviteUrl, loading, saving, regenerating,
-    loadRoom, saveRoom, regen, copyInvite, leave, kick
-  } = useRoomSettings(toast);
+  const { roomDetails, inviteUrl, loading, saving, regenerating, loadRoom, saveRoom, regen, copyInvite, leave, kick } = useRoomSettings(toast);
 
-  const [tab,       setTab]       = useState('invite');
-  const [editName,  setEditName]  = useState('');
-  const [editDesc,  setEditDesc]  = useState('');
-  const [editPriv,  setEditPriv]  = useState(true);
-  const [copied,    setCopied]    = useState(false);
+  const [tab,      setTab]      = useState('invite');
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editPriv, setEditPriv] = useState(true);
+  const [copied,   setCopied]   = useState(false);
 
-  const inputRef = useRef(null);
-
-  // Load full room details on mount
-  useEffect(() => {
-    if (room?._id) loadRoom(room._id);
-  }, [room?._id]);
-
-  // Populate edit fields once loaded
+  useEffect(() => { if (room?._id) loadRoom(room._id); }, [room?._id]);
   useEffect(() => {
     if (roomDetails) {
       setEditName(roomDetails.name        || '');
@@ -65,278 +34,246 @@ const RoomSettings = ({ room, onClose, onLeft, onUpdated }) => {
     }
   }, [roomDetails]);
 
-  const r = roomDetails || room;
-
+  const r             = roomDetails || room;
   const currentUserId = user?._id?.toString();
-  const amAdmin = r?.admins?.some?.((a) =>
-    (a._id || a).toString() === currentUserId
-  ) || r?.createdBy?._id?.toString() === currentUserId
-    || r?.createdBy?.toString()       === currentUserId;
+  const amAdmin       = r?.admins?.some?.((a) => (a._id || a).toString() === currentUserId) ||
+                        r?.createdBy?._id?.toString() === currentUserId ||
+                        r?.createdBy?.toString()       === currentUserId;
 
-  // Copy invite with visual feedback
   const handleCopy = async () => {
     await copyInvite(inviteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Save edits
   const handleSave = async () => {
-    const updated = await saveRoom(r._id, {
-      name:        editName,
-      description: editDesc,
-      isPrivate:   editPriv
-    });
+    const updated = await saveRoom(r._id, { name: editName, description: editDesc, isPrivate: editPriv });
     if (updated) onUpdated?.(updated);
   };
 
-  // Leave room
   const handleLeave = async () => {
-    if (!window.confirm('Leave this room? You can rejoin with the invite link.')) return;
+    if (!window.confirm('Leave this room?')) return;
     const ok = await leave(r._id);
     if (ok) { onLeft?.(); onClose(); }
   };
 
-  // Regen invite
   const handleRegen = async () => {
-    if (!window.confirm('This will invalidate the current invite link. Anyone who hasn\'t joined yet will need the new link. Continue?')) return;
+    if (!window.confirm('This will invalidate the current invite link. Continue?')) return;
     await regen(r._id);
   };
 
-  return (
-    <div
-      className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="w-full max-w-md bg-nt-surface border border-nt-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+  const tabs = [
+    { key: 'invite',  label: 'Invite',   icon: Link     },
+    { key: 'members', label: 'Members',  icon: Users    },
+    ...(amAdmin ? [{ key: 'settings', label: 'Settings', icon: Settings }] : [])
+  ];
 
-        {/* ── Header ──────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-nt-border bg-nt-surface2/50">
+  const inputStyle = {
+    borderBottom: '1.5px solid #025A50', background: 'transparent',
+    color: '#FFEFB2', caretColor: '#FFEFB2',
+    outline: 'none', width: '100%', fontSize: '14px', padding: '8px 0',
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style={{ background: 'rgba(0,0,0,0.7)' }}
+         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-md rounded-nt-xl overflow-hidden shadow-nt-float border animate-slide-up"
+           style={{ background: '#012B26', borderColor: '#025A50' }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b"
+             style={{ borderColor: '#025A50', background: '#013E37' }}>
           <div>
-            <h3 className="text-base font-bold text-nt-text">
-              # {r?.name || 'Room Settings'}
-            </h3>
-            <p className="text-xs text-nt-muted mt-0.5">
-              {r?.members?.length || 0} members
-            </p>
+            <h3 className="text-base font-bold" style={{ color: '#FFEFB2' }}># {r?.name || 'Room Settings'}</h3>
+            <p className="text-xs mt-0.5" style={{ color: '#7A9E99' }}>{r?.members?.length || 0} members</p>
           </div>
-          <button onClick={onClose} className="p-1.5 text-nt-muted hover:text-nt-text hover:bg-nt-surface rounded-lg transition-all">
-            <FiX size={16} />
+          <button onClick={onClose} style={{ color: '#7A9E99' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#FFEFB2'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
+            <X size={16} />
           </button>
         </div>
 
-        {/* ── Tab bar ─────────────────────────────────────────────── */}
-        <div className="flex border-b border-nt-border">
-          {[
-            { key: 'invite',  label: 'Invite',   icon: <FiLink    size={13} /> },
-            { key: 'members', label: 'Members',  icon: <FiUsers   size={13} /> },
-            ...(amAdmin ? [{ key: 'settings', label: 'Settings', icon: <FiSettings size={13} /> }] : [])
-          ].map(({ key, label, icon }) => (
+        {/* Tabs */}
+        <div className="flex border-b" style={{ borderColor: '#025A50' }}>
+          {tabs.map(({ key, label, icon: Icon }) => (
             <button key={key} onClick={() => setTab(key)}
               className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold border-b-2 transition-all
-                ${tab === key
-                  ? 'text-nt-blue border-nt-blue bg-nt-blue/5'
-                  : 'text-nt-muted border-transparent hover:text-nt-text hover:bg-nt-surface2'}`}>
-              {icon}{label}
+                ${tab === key ? 'border-primary text-primary' : 'border-transparent text-nt-muted hover:text-nt-text2'}`}>
+              <Icon size={13} />{label}
             </button>
           ))}
         </div>
 
-        {/* ── Loading skeleton ────────────────────────────────────── */}
+        {/* Loading */}
         {loading && (
-          <div className="px-6 py-8 flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-nt-blue/30 border-t-nt-blue rounded-full animate-spin" />
-            <p className="text-sm text-nt-muted">Loading room details…</p>
+          <div className="px-6 py-10 flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-t-primary rounded-full animate-spin"
+                 style={{ borderColor: '#025A50', borderTopColor: '#FFEFB2' }} />
+            <p className="text-sm" style={{ color: '#7A9E99' }}>Loading…</p>
           </div>
         )}
 
         {!loading && (
           <>
-            {/* ── INVITE TAB ───────────────────────────────────────── */}
+            {/* INVITE TAB */}
             {tab === 'invite' && (
               <div className="px-6 py-5 space-y-5">
-                {/* QR Code */}
                 {inviteUrl && (
                   <div className="flex flex-col items-center gap-3">
-                    <QRCode value={inviteUrl} size={180} />
-                    <p className="text-xs text-nt-muted text-center">
-                      Scan this QR code to join <strong className="text-nt-text">#{r?.name}</strong>
+                    <QRCode value={inviteUrl} size={160} />
+                    <p className="text-xs text-center" style={{ color: '#7A9E99' }}>
+                      Scan to join <strong style={{ color: '#FFEFB2' }}>#{r?.name}</strong>
                     </p>
                   </div>
                 )}
-
-                {/* Invite URL */}
                 <div>
-                  <label className="block text-xs font-semibold text-nt-muted mb-2 uppercase tracking-wider">
-                    Invite Link
-                  </label>
+                  <label className="block text-xs font-semibold mb-2 uppercase tracking-widest" style={{ color: '#7A9E99' }}>Invite Link</label>
                   <div className="flex items-center gap-2">
-                    <div
-                      ref={inputRef}
-                      className="flex-1 bg-nt-surface2 border border-nt-border rounded-xl px-3 py-2.5 text-xs text-nt-muted font-mono truncate"
-                    >
-                      {inviteUrl || 'Generating link…'}
+                    <div className="flex-1 px-3 py-2.5 rounded-nt border text-xs font-mono truncate"
+                         style={{ background: '#011F1B', borderColor: '#025A50', color: '#7A9E99' }}>
+                      {inviteUrl || 'Generating…'}
                     </div>
-                    <button
-                      onClick={handleCopy}
-                      disabled={!inviteUrl}
-                      className="flex-shrink-0 flex items-center gap-1.5 text-xs px-3 py-2.5 rounded-xl bg-nt-blue hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50"
-                    >
-                      {copied ? <FiCheck size={12} /> : <FiCopy size={12} />}
+                    <button onClick={handleCopy} disabled={!inviteUrl}
+                      className="btn-primary flex items-center gap-1.5 text-xs px-3 py-2.5 flex-shrink-0">
+                      {copied ? <Check size={12} /> : <Copy size={12} />}
                       {copied ? 'Copied!' : 'Copy'}
                     </button>
                   </div>
                 </div>
-
-                {/* Regen (admin only) */}
                 {amAdmin && (
-                  <button
-                    onClick={handleRegen}
-                    disabled={regenerating}
-                    className="w-full flex items-center justify-center gap-2 text-xs py-2.5 rounded-xl border border-nt-border text-nt-muted hover:text-nt-warning hover:border-nt-warning/50 transition-all"
-                  >
-                    <FiRefreshCw size={12} className={regenerating ? 'animate-spin' : ''} />
+                  <button onClick={handleRegen} disabled={regenerating}
+                    className="w-full flex items-center justify-center gap-2 text-xs py-2.5 rounded-nt border transition-all"
+                    style={{ borderColor: '#025A50', color: '#7A9E99' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#FCD34D'; e.currentTarget.style.color = '#FCD34D'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#025A50'; e.currentTarget.style.color = '#7A9E99'; }}>
+                    <RefreshCw size={12} className={regenerating ? 'animate-spin' : ''} />
                     {regenerating ? 'Regenerating…' : 'Regenerate Link (invalidates old one)'}
                   </button>
                 )}
-
-                <div className="p-3 rounded-xl bg-nt-surface2 border border-nt-border">
-                  <p className="text-xs text-nt-muted leading-relaxed">
-                    <strong className="text-nt-text">How to invite:</strong> Share the link or QR code with any registered NexTalk user. They can click the link or scan the QR to join this room instantly.
-                  </p>
+                <div className="p-3 rounded-nt border text-xs leading-relaxed"
+                     style={{ background: 'rgba(255,239,178,0.04)', borderColor: '#025A50', color: '#7A9E99' }}>
+                  Share this link or QR code with any registered NexTalk user. They can join instantly.
                 </div>
               </div>
             )}
 
-            {/* ── MEMBERS TAB ─────────────────────────────────────── */}
+            {/* MEMBERS TAB */}
             {tab === 'members' && (
               <div className="px-4 py-4">
-                <div className="space-y-1 max-h-80 overflow-y-auto">
+                <div className="space-y-1 max-h-72 overflow-y-auto">
                   {(r?.members || []).map((member) => {
                     const memberId  = member._id?.toString() || member.toString();
-                    const isCreator = r?.createdBy?._id?.toString() === memberId ||
-                                      r?.createdBy?.toString()       === memberId;
+                    const isCreator = r?.createdBy?._id?.toString() === memberId || r?.createdBy?.toString() === memberId;
                     const isAdminM  = r?.admins?.some?.((a) => (a._id || a).toString() === memberId);
                     const isYou     = memberId === currentUserId;
                     const canKick   = amAdmin && !isCreator && !isYou;
+                    const hasImg    = member.avatar?.startsWith?.('data:') || member.avatar?.startsWith?.('http');
 
                     return (
                       <div key={memberId}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-nt-surface2 transition-colors group">
-                        {/* Avatar */}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-nt group transition-all"
+                        style={{ background: 'transparent' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,239,178,0.04)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                         <div className="relative flex-shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-nt-surface border border-nt-border flex items-center justify-center text-xs font-bold text-nt-text">
-                            {member.avatar?.startsWith?.('data:') || member.avatar?.startsWith?.('http')
-                              ? <img src={member.avatar} alt="" className="w-full h-full rounded-full object-cover" />
-                              : (member.username?.[0]?.toUpperCase() || '?')}
+                          <div className="w-8 h-8 rounded-full overflow-hidden border flex items-center justify-center text-xs font-bold"
+                               style={{ background: 'linear-gradient(135deg, #FFEFB2, #F5DC6E)', borderColor: '#025A50', color: '#013E37' }}>
+                            {hasImg ? <img src={member.avatar} alt="" className="w-full h-full object-cover" /> : member.username?.[0]?.toUpperCase() || '?'}
                           </div>
-                          {member.isOnline && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-nt-success rounded-full border-2 border-nt-surface" />
-                          )}
+                          {member.isOnline && <div className="status-online absolute -bottom-0.5 -right-0.5" />}
                         </div>
-
-                        {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-medium text-nt-text truncate">
+                            <span className="text-sm font-medium truncate" style={{ color: '#FFEFB2' }}>
                               {member.username || memberId}
                             </span>
-                            {isYou     && <span className="text-xs text-nt-muted">(you)</span>}
-                            {isCreator && <span className="text-xs px-1.5 py-0.5 rounded-md bg-nt-warning/15 text-nt-warning border border-nt-warning/25">Owner</span>}
-                            {isAdminM && !isCreator && <FiShield size={11} className="text-nt-blue flex-shrink-0" />}
+                            {isYou && <span className="text-xs" style={{ color: '#7A9E99' }}>(you)</span>}
+                            {isCreator && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-md font-semibold"
+                                    style={{ background: 'rgba(252,211,77,0.12)', color: '#FCD34D', border: '1px solid rgba(252,211,77,0.25)' }}>
+                                Owner
+                              </span>
+                            )}
+                            {isAdminM && !isCreator && <Shield size={11} style={{ color: '#60D4C8' }} />}
                           </div>
-                          {member.isOnline !== undefined && (
-                            <p className="text-xs text-nt-muted">
-                              {member.isOnline ? '● Online' : '○ Offline'}
-                            </p>
-                          )}
+                          <p className="text-xs" style={{ color: member.isOnline ? '#4ADE80' : '#7A9E99' }}>
+                            {member.isOnline !== undefined ? (member.isOnline ? 'Online' : 'Offline') : ''}
+                          </p>
                         </div>
-
-                        {/* Kick button */}
                         {canKick && (
-                          <button
-                            onClick={() => kick(r._id, memberId, member.username)}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 text-nt-muted hover:text-nt-danger transition-all rounded-lg hover:bg-nt-danger/10"
-                            title="Remove from room"
-                          >
-                            <FiTrash2 size={13} />
+                          <button onClick={() => kick(r._id, memberId, member.username)}
+                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all"
+                            style={{ color: '#7A9E99' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = '#7A9E99'; e.currentTarget.style.background = 'transparent'; }}
+                            title="Remove from room">
+                            <Trash2 size={13} />
                           </button>
                         )}
                       </div>
                     );
                   })}
                 </div>
-
-                {/* Leave room */}
-                {!( r?.createdBy?._id?.toString() === currentUserId || r?.createdBy?.toString() === currentUserId) && (
+                {!(r?.createdBy?._id?.toString() === currentUserId || r?.createdBy?.toString() === currentUserId) && (
                   <button onClick={handleLeave}
-                    className="w-full mt-4 flex items-center justify-center gap-2 text-xs py-2.5 rounded-xl border border-nt-danger/40 text-nt-danger hover:bg-nt-danger/10 transition-all">
-                    <FiLogOut size={13} />
-                    Leave Room
+                    className="btn-danger w-full mt-4 flex items-center justify-center gap-2 text-sm">
+                    <LogOut size={14} />Leave Room
                   </button>
                 )}
               </div>
             )}
 
-            {/* ── SETTINGS TAB (admin only) ────────────────────────── */}
+            {/* SETTINGS TAB */}
             {tab === 'settings' && amAdmin && (
               <div className="px-6 py-5 space-y-4">
-                {/* Room name */}
                 <div>
-                  <label className="block text-xs font-semibold text-nt-muted mb-1.5 uppercase tracking-wider">Room Name</label>
-                  <div className="relative">
-                    <FiEdit2 size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-nt-muted" />
-                    <input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      placeholder="Room name"
-                      className="nt-input pl-9"
-                    />
-                  </div>
+                  <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: '#7A9E99' }}>Room Name</label>
+                  <input value={editName} onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Room name" style={inputStyle}
+                    onFocus={(e) => e.target.style.borderBottomColor = '#FFEFB2'}
+                    onBlur={(e)  => e.target.style.borderBottomColor = '#025A50'}
+                  />
                 </div>
-
-                {/* Description */}
                 <div>
-                  <label className="block text-xs font-semibold text-nt-muted mb-1.5 uppercase tracking-wider">Description</label>
-                  <textarea
-                    value={editDesc}
-                    onChange={(e) => setEditDesc(e.target.value)}
-                    placeholder="What is this room about?"
-                    rows={2}
-                    className="nt-input resize-none"
+                  <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: '#7A9E99' }}>Description</label>
+                  <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)}
+                    placeholder="What is this room about?" rows={2}
+                    className="resize-none"
+                    style={{ ...inputStyle, resize: 'none' }}
+                    onFocus={(e) => e.target.style.borderBottomColor = '#FFEFB2'}
+                    onBlur={(e)  => e.target.style.borderBottomColor = '#025A50'}
                   />
                 </div>
 
                 {/* Privacy toggle */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-nt-surface2 border border-nt-border">
+                <div className="flex items-center justify-between p-3 rounded-nt border"
+                     style={{ background: 'rgba(255,239,178,0.04)', borderColor: '#025A50' }}>
                   <div className="flex items-center gap-2">
-                    {editPriv ? <FiLock size={14} className="text-nt-blue" /> : <FiUnlock size={14} className="text-nt-muted" />}
+                    {editPriv ? <Lock size={14} style={{ color: '#60D4C8' }} /> : <Unlock size={14} style={{ color: '#7A9E99' }} />}
                     <div>
-                      <p className="text-sm font-medium text-nt-text">
-                        {editPriv ? 'Private — Invite only' : 'Public — Anyone can join'}
+                      <p className="text-sm font-medium" style={{ color: '#FFEFB2' }}>
+                        {editPriv ? 'Private — Invite only' : 'Public'}
                       </p>
-                      <p className="text-xs text-nt-muted">
-                        {editPriv ? 'Users need your invite link to join' : 'Room visible to all (coming soon)'}
+                      <p className="text-xs" style={{ color: '#7A9E99' }}>
+                        {editPriv ? 'Users need your invite link' : 'Anyone can join'}
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setEditPriv(!editPriv)}
-                    className={`w-10 h-6 rounded-full transition-colors relative ${editPriv ? 'bg-nt-blue' : 'bg-nt-border'}`}
-                  >
-                    <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${editPriv ? 'left-5' : 'left-1'}`} />
+                  <button onClick={() => setEditPriv(!editPriv)}
+                    className="w-10 h-6 rounded-full relative transition-colors"
+                    style={{ background: editPriv ? '#FFEFB2' : '#025A50' }}>
+                    <div className="w-4 h-4 rounded-full absolute top-1 transition-all"
+                         style={{ background: editPriv ? '#013E37' : '#7A9E99', left: editPriv ? '1.25rem' : '0.25rem' }} />
                   </button>
                 </div>
 
-                {/* Save */}
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !editName.trim()}
-                  className="btn-primary w-full flex items-center justify-center gap-2"
-                >
+                <button onClick={handleSave} disabled={saving || !editName.trim()}
+                  className="btn-primary w-full flex items-center justify-center gap-2">
                   {saving
-                    ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
-                    : <><FiSave size={14} /> Save Settings</>
+                    ? <><div className="w-4 h-4 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />Saving…</>
+                    : <><Save size={14} />Save Settings</>
                   }
                 </button>
               </div>

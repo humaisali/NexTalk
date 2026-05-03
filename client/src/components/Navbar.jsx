@@ -1,94 +1,121 @@
 import { useAuth }   from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import MoodIndicator from './MoodIndicator';
-import { FiWifiOff, FiRefreshCw, FiZap, FiSettings } from 'react-icons/fi';
+import { WifiOff, RefreshCw, Zap, Settings, Phone, Video, Search, MoreHorizontal } from 'lucide-react';
 
 const Navbar = ({ onSummaryOpen, onRoomSettings }) => {
-  const { user }          = useAuth();
-  const { activeRoom, isConnected, isReconnecting } = useSocket();
+  const { user }            = useAuth();
+  const { activeRoom, activeConversation, isConnected, isReconnecting, onlineUsers } = useSocket();
+
+  const isInDM   = !!activeConversation;
+  const isInRoom = !!activeRoom && !isInDM;
+
+  const other = isInDM
+    ? activeConversation?.participants?.find((p) => p._id?.toString() !== user?._id?.toString())
+    : null;
 
   return (
-    <div className="h-14 bg-nt-surface border-b border-nt-border flex items-center px-5 gap-4 flex-shrink-0 z-10">
+    <div className="h-16 flex items-center px-5 gap-4 flex-shrink-0 border-b"
+         style={{ background: '#012B26', borderColor: '#025A50' }}>
 
-      {/* Brand */}
-      <div className="flex items-center gap-2.5 flex-shrink-0">
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-nt-blue to-nt-cyan flex items-center justify-center shadow-md shadow-nt-blue/20 flex-shrink-0">
-          <span className="text-white text-xs font-black">N</span>
-        </div>
-        <span className="font-bold text-nt-text text-base tracking-tight">
-          Nex<span className="text-nt-blue">Talk</span>
-        </span>
+      {/* Left — context info */}
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        {isInRoom && (
+          <>
+            <div className="w-10 h-10 rounded-nt flex items-center justify-center flex-shrink-0 border"
+                 style={{ background: 'rgba(255,239,178,0.1)', borderColor: '#025A50' }}>
+              <span className="text-sm font-bold" style={{ color: '#FFEFB2' }}>#</span>
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-bold text-sm truncate" style={{ color: '#FFEFB2' }}>{activeRoom.name}</h2>
+              {activeRoom.description && (
+                <p className="text-xs truncate" style={{ color: '#7A9E99' }}>{activeRoom.description}</p>
+              )}
+            </div>
+            <MoodIndicator compact />
+          </>
+        )}
 
-        {/* Connection badge */}
-        {isReconnecting ? (
-          <div className="flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border text-nt-warning border-nt-warning/30 bg-nt-warning/10">
-            <FiRefreshCw size={10} className="animate-spin" />
-            Reconnecting…
-          </div>
-        ) : (
-          <div className={`flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border transition-all
-            ${isConnected
-              ? 'text-nt-success border-nt-success/30 bg-nt-success/10'
-              : 'text-nt-danger  border-nt-danger/30  bg-nt-danger/10'}`}>
-            {isConnected
-              ? <><div className="w-1.5 h-1.5 rounded-full bg-nt-success animate-pulse-dot" />Live</>
-              : <><FiWifiOff size={10} />Offline</>
-            }
+        {isInDM && other && (
+          <>
+            {/* Avatar */}
+            <div className="relative flex-shrink-0">
+              <div className="w-10 h-10 rounded-full border flex items-center justify-center text-sm font-bold overflow-hidden"
+                   style={{ background: 'linear-gradient(135deg, #FFEFB2, #F5DC6E)', borderColor: '#025A50', color: '#013E37' }}>
+                {other.avatar?.startsWith?.('data:') || other.avatar?.startsWith?.('http')
+                  ? <img src={other.avatar} alt="" className="w-full h-full object-cover" />
+                  : other.username?.[0]?.toUpperCase()
+                }
+              </div>
+              {other.isOnline && <div className="status-online absolute -bottom-0.5 -right-0.5" />}
+            </div>
+            <div>
+              <h2 className="font-bold text-sm" style={{ color: '#FFEFB2' }}>{other.username}</h2>
+              <p className="text-xs" style={{ color: other.isOnline ? '#4ADE80' : '#7A9E99' }}>
+                {other.isOnline ? 'Online' : 'Offline'}
+              </p>
+            </div>
+          </>
+        )}
+
+        {!isInRoom && !isInDM && (
+          <div>
+            <h2 className="font-bold text-base" style={{ color: '#FFEFB2' }}>NexTalk</h2>
+            <p className="text-xs" style={{ color: '#7A9E99' }}>AI-Powered Chat</p>
           </div>
         )}
       </div>
 
-      {/* Active room info + mood */}
-      {activeRoom && (
-        <div className="flex-1 flex items-center justify-center gap-3 min-w-0 px-4">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-nt-blue font-bold text-lg flex-shrink-0">#</span>
-            <span className="text-nt-text font-semibold text-sm truncate">{activeRoom.name}</span>
-            {activeRoom.description && (
-              <>
-                <span className="text-nt-border flex-shrink-0">·</span>
-                <span className="text-nt-muted text-xs truncate hidden md:block">{activeRoom.description}</span>
-              </>
-            )}
+      {/* Right — actions */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+
+        {/* Connection badge */}
+        {isReconnecting ? (
+          <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border"
+               style={{ color: '#FCD34D', borderColor: 'rgba(252,211,77,0.3)', background: 'rgba(252,211,77,0.08)' }}>
+            <RefreshCw size={10} className="animate-spin" />Reconnecting
           </div>
-          <MoodIndicator compact />
-        </div>
-      )}
+        ) : !isConnected ? (
+          <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border"
+               style={{ color: '#F87171', borderColor: 'rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.08)' }}>
+            <WifiOff size={10} />Offline
+          </div>
+        ) : null}
 
-      {/* Right actions */}
-      <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-        {activeRoom && (
+        {(isInRoom || isInDM) && (
           <>
-            {/* Catch Me Up */}
-            <button
-              onClick={onSummaryOpen}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-nt-surface2 border border-nt-border
-                hover:border-nt-blue/50 hover:text-nt-blue hover:bg-nt-blue/5 text-nt-muted transition-all"
-              title="AI conversation summary"
-            >
-              <FiZap size={12} className="text-nt-cyan" />
-              <span className="hidden sm:inline">Catch Me Up</span>
-            </button>
-
-            {/* Room settings gear */}
-            <button
-              onClick={onRoomSettings}
-              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl bg-nt-surface2 border border-nt-border
-                hover:border-nt-blue/50 hover:text-nt-blue hover:bg-nt-blue/5 text-nt-muted transition-all"
-              title="Room settings & invite"
-            >
-              <FiSettings size={14} />
+            <button className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
+                    style={{ background: 'rgba(255,239,178,0.08)', color: '#7A9E99' }}>
+              <Search size={15} />
             </button>
           </>
         )}
 
-        {/* Avatar */}
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-nt-blue/80 to-nt-cyan/60 flex items-center justify-center text-xs font-bold text-white border border-nt-blue/20 flex-shrink-0 overflow-hidden">
-          {user?.avatar?.startsWith?.('data:image/')
-            ? <img src={user.avatar} alt="" className="w-full h-full object-cover" />
-            : user?.username?.[0]?.toUpperCase()
-          }
-        </div>
+        {isInRoom && (
+          <>
+            <button onClick={onSummaryOpen}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-nt font-semibold transition-all hover:opacity-80"
+              style={{ background: 'rgba(255,239,178,0.1)', color: '#FFEFB2', border: '1px solid rgba(255,239,178,0.2)' }}
+              title="AI summary">
+              <Zap size={13} style={{ color: '#FFEFB2' }} />
+              <span className="hidden sm:inline">Catch Me Up</span>
+            </button>
+
+            <button onClick={onRoomSettings}
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
+              style={{ background: 'rgba(255,239,178,0.08)', color: '#7A9E99' }}
+              title="Room settings">
+              <Settings size={15} />
+            </button>
+          </>
+        )}
+
+        {isInDM && (
+          <button className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
+                  style={{ background: 'rgba(255,239,178,0.08)', color: '#7A9E99' }}>
+            <MoreHorizontal size={15} />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -2,22 +2,12 @@ import { useRef, useEffect, useState } from 'react';
 import { useAuth }    from '../context/AuthContext';
 import { useSocket }  from '../context/SocketContext';
 import MessageBubble  from './MessageBubble';
-import { FiArrowDown } from 'react-icons/fi';
+import { ArrowDown }  from 'lucide-react';
 
-/**
- * ChatWindow
- *
- * Day 6 props added:
- *   onAutoTranslate  — async (message) called for each received msg on render
- *   userLanguage     — current user language code ('en', 'ur', etc.)
- */
 const ChatWindow = ({
-  onExplainCode,
-  explainLoading,
-  onTranslate,
-  onAutoTranslate,
-  translationLoading,
-  translations = {},
+  onExplainCode, explainLoading,
+  onTranslate, onAutoTranslate,
+  translationLoading, translations = {},
   userLanguage = 'en'
 }) => {
   const { user }                              = useAuth();
@@ -41,65 +31,62 @@ const ChatWindow = ({
     if (el) setShowScrollBtn(el.scrollHeight - el.scrollTop - el.clientHeight > 100);
   };
 
-  const scrollToBottom = () => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); setShowScrollBtn(false); };
-
   const typingText =
     typingUsers.length === 1 ? `${typingUsers[0]} is typing…` :
     typingUsers.length === 2 ? `${typingUsers[0]} and ${typingUsers[1]} are typing…` :
-    typingUsers.length  >  2 ? 'Several people are typing…' : null;
+    typingUsers.length > 2   ? 'Several people are typing…' : null;
 
   if (!activeRoom) return null;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
-      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-5 py-5">
+      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-6 py-5">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-center select-none">
-            <div className="w-14 h-14 rounded-2xl bg-nt-surface2 border border-nt-border flex items-center justify-center text-2xl">💬</div>
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-center select-none">
+            <div className="w-16 h-16 rounded-2xl border flex items-center justify-center"
+                 style={{ background: 'rgba(255,239,178,0.06)', borderColor: '#025A50' }}>
+              <span className="text-2xl">#</span>
+            </div>
             <div>
-              <p className="text-nt-text font-semibold mb-1">Welcome to <span className="text-nt-blue">#{activeRoom.name}</span></p>
-              <p className="text-nt-muted text-sm">This is the beginning of the conversation.</p>
-              {activeRoom.description && <p className="text-nt-muted/60 text-xs mt-1">{activeRoom.description}</p>}
+              <p className="font-semibold text-sm" style={{ color: '#FFEFB2' }}>
+                Welcome to <span style={{ color: '#FFEFB2' }}>#{activeRoom.name}</span>
+              </p>
+              <p className="text-xs mt-1" style={{ color: '#7A9E99' }}>
+                {activeRoom.description || 'Be the first to say something!'}
+              </p>
             </div>
           </div>
         ) : (
           messages.map((msg) => (
-            <MessageBubble
-              key={msg._id}
-              msg={msg}
-              isOwn={
-                msg.sender?._id === user?._id ||
-                msg.sender?._id?.toString() === user?._id?.toString()
-              }
-              onExplainCode={onExplainCode}
-              isExplaining={explainLoading}
-              onTranslate={onTranslate}
-              onAutoTranslate={onAutoTranslate}
-              translationLoading={translationLoading}
-              translations={translations}
+            <MessageBubble key={msg._id} msg={msg}
+              isOwn={msg.sender?._id === user?._id || msg.sender?._id?.toString() === user?._id?.toString()}
+              onExplainCode={onExplainCode} isExplaining={explainLoading}
+              onTranslate={onTranslate} onAutoTranslate={onAutoTranslate}
+              translationLoading={translationLoading} translations={translations}
               userLanguage={userLanguage}
             />
           ))
         )}
 
-        {/* Typing indicator */}
         {typingText && (
           <div className="flex items-center gap-2 mt-1 px-1">
             <div className="flex gap-1">
-              {[0, 150, 300].map((d) => (
-                <div key={d} className="w-1.5 h-1.5 rounded-full bg-nt-muted animate-bounce" style={{ animationDelay: `${d}ms` }} />
+              {[0,150,300].map((d) => (
+                <div key={d} className="w-1.5 h-1.5 rounded-full animate-bounce"
+                     style={{ background: '#7A9E99', animationDelay: `${d}ms` }} />
               ))}
             </div>
-            <span className="text-xs text-nt-muted italic">{typingText}</span>
+            <span className="text-xs italic" style={{ color: '#7A9E99' }}>{typingText}</span>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
       {showScrollBtn && (
-        <button onClick={scrollToBottom}
-          className="absolute bottom-4 right-5 w-9 h-9 rounded-full bg-nt-blue shadow-lg shadow-nt-blue/30 flex items-center justify-center text-white hover:bg-blue-500 transition-all z-10">
-          <FiArrowDown size={16} />
+        <button onClick={() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); setShowScrollBtn(false); }}
+          className="absolute bottom-4 right-5 w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-all"
+          style={{ background: '#FFEFB2', color: '#013E37' }}>
+          <ArrowDown size={16} />
         </button>
       )}
     </div>

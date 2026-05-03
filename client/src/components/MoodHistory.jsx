@@ -1,77 +1,46 @@
-import { FiTrendingUp, FiTrendingDown, FiMinus } from 'react-icons/fi';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
-const MOOD_CONFIG = {
-  positive: { emoji: '😄', color: 'text-nt-success', bg: 'bg-nt-success',  label: 'Positive' },
-  excited:  { emoji: '🔥', color: 'text-nt-cyan',    bg: 'bg-nt-cyan',     label: 'Excited'  },
-  neutral:  { emoji: '😐', color: 'text-nt-muted',   bg: 'bg-nt-muted',    label: 'Neutral'  },
-  tense:    { emoji: '😬', color: 'text-nt-warning',  bg: 'bg-nt-warning',  label: 'Tense'    },
-  negative: { emoji: '😤', color: 'text-nt-danger',   bg: 'bg-nt-danger',   label: 'Negative' },
+const MOOD = {
+  positive: { color: '#4ADE80', bar: '#4ADE80', label: 'Positive' },
+  excited:  { color: '#60D4C8', bar: '#60D4C8', label: 'Excited'  },
+  neutral:  { color: '#7A9E99', bar: '#7A9E99', label: 'Neutral'  },
+  tense:    { color: '#FCD34D', bar: '#FCD34D', label: 'Tense'    },
+  negative: { color: '#F87171', bar: '#F87171', label: 'Negative' },
 };
 
-// Score trend arrow
 const Trend = ({ delta }) => {
-  if (delta > 5)  return <FiTrendingUp   size={10} className="text-nt-success" />;
-  if (delta < -5) return <FiTrendingDown size={10} className="text-nt-danger"  />;
-  return <FiMinus size={10} className="text-nt-muted" />;
+  if (delta > 5)  return <TrendingUp   size={10} style={{ color: '#4ADE80' }} />;
+  if (delta < -5) return <TrendingDown size={10} style={{ color: '#F87171' }} />;
+  return <Minus size={10} style={{ color: '#7A9E99' }} />;
 };
 
-/**
- * MoodHistory — shows last 5 mood snapshots as a mini horizontal timeline.
- *
- * Props:
- *   history — [{ mood, score, timestamp }] newest first
- */
 const MoodHistory = ({ history = [] }) => {
   if (history.length === 0) return null;
-
-  // Show max 5, newest last for left→right timeline
   const visible = [...history].slice(0, 5).reverse();
-
   return (
     <div className="px-3 pb-3">
-      <p className="text-xs font-semibold text-nt-muted uppercase tracking-widest mb-2 px-1">
-        Mood History
-      </p>
-
-      {/* Mini timeline */}
+      <p className="section-label mb-2 px-1">Mood History</p>
       <div className="flex items-end gap-1.5">
         {visible.map((entry, i) => {
-          const cfg    = MOOD_CONFIG[entry.mood] || MOOD_CONFIG.neutral;
+          const cfg    = MOOD[entry.mood] || MOOD.neutral;
           const isLast = i === visible.length - 1;
           const prev   = i > 0 ? visible[i - 1] : null;
           const delta  = prev ? entry.score - prev.score : 0;
-          const barH   = Math.max(16, Math.round((entry.score / 100) * 48));
-
+          const barH   = Math.max(12, Math.round((entry.score / 100) * 44));
           return (
             <div key={i} className="flex flex-col items-center gap-1 flex-1" title={`${cfg.label} — ${entry.score}%`}>
-              {/* Bar */}
-              <div className="w-full flex items-end justify-center" style={{ height: 52 }}>
-                <div
-                  className={`w-full rounded-t-sm transition-all ${cfg.bg} ${isLast ? 'opacity-100' : 'opacity-40'}`}
-                  style={{ height: barH }}
-                />
+              <div className="w-full flex items-end justify-center" style={{ height: 48 }}>
+                <div className="w-full rounded-t-sm transition-all"
+                     style={{ height: barH, background: cfg.bar, opacity: isLast ? 1 : 0.4 }} />
               </div>
-              {/* Emoji */}
-              <span className={`text-xs leading-none ${isLast ? 'opacity-100' : 'opacity-50'}`}>
-                {cfg.emoji}
-              </span>
-              {/* Trend arrow (only for latest) */}
-              {isLast && prev && (
-                <Trend delta={delta} />
-              )}
+              {isLast && prev && <Trend delta={delta} />}
             </div>
           );
         })}
       </div>
-
-      {/* Latest mood label */}
       {history[0] && (() => {
-        const latest = MOOD_CONFIG[history[0].mood] || MOOD_CONFIG.neutral;
-        return (
-          <p className={`text-xs mt-2 px-1 font-medium ${latest.color}`}>
-            {latest.emoji} Currently {latest.label} · {history[0].score}%
-          </p>
-        );
+        const l = MOOD[history[0].mood] || MOOD.neutral;
+        return <p className="text-xs mt-2 px-1 font-medium" style={{ color: l.color }}>Currently {l.label} · {history[0].score}%</p>;
       })()}
     </div>
   );

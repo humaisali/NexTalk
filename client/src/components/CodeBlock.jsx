@@ -1,31 +1,11 @@
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { FiCopy, FiCheck, FiCpu, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { Copy, Check, Cpu, ChevronDown, ChevronUp } from 'lucide-react';
 
-/**
- * CodeBlock — renders a syntax-highlighted code message with:
- * - Copy button
- * - AI "Explain" button (calls onExplain)
- * - Collapsible explanation panel
- * - Auto-shows explanation when server pushes it via socket
- *
- * Props:
- *   content       — raw code string
- *   language      — e.g. 'javascript'
- *   explanation   — AI explanation string (may arrive after mount)
- *   onExplain     — fn(code, lang) triggers AI call
- *   isExplaining  — boolean
- */
 const CodeBlock = ({ content, language = 'javascript', explanation = '', onExplain, isExplaining }) => {
   const [copied,          setCopied]          = useState(false);
-  const [showExplanation, setShowExplanation] = useState(false);
-
-  // Auto-open explanation panel when it arrives from socket
-  const prevExplanation = explanation;
-  if (explanation && !showExplanation && prevExplanation !== explanation) {
-    setShowExplanation(true);
-  }
+  const [showExplanation, setShowExplanation] = useState(!!explanation);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(content);
@@ -38,94 +18,81 @@ const CodeBlock = ({ content, language = 'javascript', explanation = '', onExpla
     if (!explanation && !isExplaining) onExplain?.(content, language);
   };
 
-  const lineCount = content.split('\n').length;
+  const lines = content.split('\n').length;
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-nt-border bg-[#1E1E1E] w-full max-w-lg shadow-lg">
+    <div className="rounded-xl overflow-hidden w-full max-w-lg shadow-nt-card border"
+         style={{ background: '#1E1E2E', borderColor: '#025A50' }}>
 
-      {/* ── Header bar ───────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#2D2D2D] border-b border-white/5">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b"
+           style={{ background: '#181825', borderColor: '#025A50' }}>
         <div className="flex items-center gap-3">
           {/* macOS dots */}
           <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
-            <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
-            <div className="w-3 h-3 rounded-full bg-[#27C93F]" />
+            <div className="w-3 h-3 rounded-full" style={{ background: '#FF5F56' }} />
+            <div className="w-3 h-3 rounded-full" style={{ background: '#FFBD2E' }} />
+            <div className="w-3 h-3 rounded-full" style={{ background: '#27C93F' }} />
           </div>
-          <span className="text-xs text-nt-cyan font-mono font-semibold">{language}</span>
-          <span className="text-xs text-nt-muted">{lineCount} {lineCount === 1 ? 'line' : 'lines'}</span>
+          <span className="text-xs font-mono font-semibold" style={{ color: '#60D4C8' }}>{language}</span>
+          <span className="text-xs" style={{ color: '#7A9E99' }}>{lines} {lines === 1 ? 'line' : 'lines'}</span>
         </div>
-
         <div className="flex items-center gap-1">
-          {/* Explain toggle */}
           {explanation ? (
-            <button
-              onClick={() => setShowExplanation(!showExplanation)}
-              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg text-nt-cyan hover:bg-nt-cyan/10 transition-colors"
-            >
-              <FiCpu size={11} />
-              <span>Explanation</span>
-              {showExplanation ? <FiChevronUp size={10} /> : <FiChevronDown size={10} />}
+            <button onClick={() => setShowExplanation(!showExplanation)}
+              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-all"
+              style={{ color: '#60D4C8' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(96,212,200,0.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+              <Cpu size={11} /><span>Explain</span>
+              {showExplanation ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
             </button>
           ) : (
-            <button
-              onClick={handleExplain}
-              disabled={isExplaining}
-              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg text-nt-muted hover:text-nt-cyan hover:bg-nt-cyan/10 transition-colors disabled:opacity-40"
-            >
-              <FiCpu size={11} />
-              <span>{isExplaining ? 'Explaining…' : 'Explain'}</span>
+            <button onClick={handleExplain} disabled={isExplaining}
+              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-all"
+              style={{ color: isExplaining ? '#7A9E99' : '#60D4C8' }}
+              onMouseEnter={(e) => !isExplaining && (e.currentTarget.style.background = 'rgba(96,212,200,0.1)')}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+              <Cpu size={11} /><span>{isExplaining ? 'Explaining…' : 'Explain'}</span>
             </button>
           )}
-
-          {/* Copy */}
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg text-nt-muted hover:text-nt-text hover:bg-nt-surface2 transition-colors"
-          >
-            {copied ? <FiCheck size={11} className="text-nt-success" /> : <FiCopy size={11} />}
+          <button onClick={handleCopy}
+            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-all"
+            style={{ color: copied ? '#4ADE80' : '#7A9E99' }}
+            onMouseEnter={(e) => !copied && (e.currentTarget.style.background = 'rgba(255,239,178,0.06)')}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+            {copied ? <Check size={11} /> : <Copy size={11} />}
             <span>{copied ? 'Copied!' : 'Copy'}</span>
           </button>
         </div>
       </div>
 
-      {/* ── Code area ────────────────────────────────────────── */}
-      <div className="max-h-72 overflow-auto">
-        <SyntaxHighlighter
-          language={language}
-          style={vscDarkPlus}
-          customStyle={{
-            margin: 0,
-            padding: '1rem',
-            background: 'transparent',
-            fontSize: '0.78rem',
-            lineHeight: '1.65'
-          }}
-          showLineNumbers
-          lineNumberStyle={{ color: '#3a3a3a', minWidth: '2.5em', fontSize: '0.7rem', userSelect: 'none' }}
-        >
+      {/* Code */}
+      <div className="max-h-64 overflow-auto">
+        <SyntaxHighlighter language={language} style={vscDarkPlus}
+          customStyle={{ margin: 0, padding: '1rem', background: 'transparent', fontSize: '0.76rem', lineHeight: '1.6' }}
+          showLineNumbers lineNumberStyle={{ color: '#3a3a5c', fontSize: '0.7rem', minWidth: '2.5em' }}>
           {content}
         </SyntaxHighlighter>
       </div>
 
-      {/* ── AI Explanation panel ──────────────────────────────── */}
+      {/* Explanation panel */}
       {showExplanation && (
-        <div className="border-t border-white/5 bg-nt-surface2/60 px-4 py-3">
+        <div className="border-t px-4 py-3" style={{ borderColor: '#025A50', background: 'rgba(96,212,200,0.04)' }}>
           <div className="flex items-center gap-2 mb-2">
-            <FiCpu size={12} className="text-nt-cyan" />
-            <span className="text-xs font-semibold text-nt-cyan uppercase tracking-wider">AI Explanation</span>
+            <Cpu size={12} style={{ color: '#60D4C8' }} />
+            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#60D4C8' }}>AI Explanation</span>
           </div>
-
           {isExplaining || !explanation ? (
-            /* Loading dots */
-            <div className="flex items-center gap-1.5 py-1">
-              {[0, 150, 300].map((d) => (
-                <div key={d} className="w-1.5 h-1.5 rounded-full bg-nt-cyan animate-bounce" style={{ animationDelay: `${d}ms` }} />
+            <div className="flex items-center gap-2">
+              {[0,150,300].map((d) => (
+                <div key={d} className="w-1.5 h-1.5 rounded-full animate-bounce"
+                     style={{ background: '#60D4C8', animationDelay: `${d}ms` }} />
               ))}
-              <span className="text-xs text-nt-muted ml-1">Gemini is reading the code…</span>
+              <span className="text-xs" style={{ color: '#7A9E99' }}>Reading code…</span>
             </div>
           ) : (
-            <p className="text-xs text-nt-muted leading-relaxed">{explanation}</p>
+            <p className="text-xs leading-relaxed" style={{ color: '#D4C98A' }}>{explanation}</p>
           )}
         </div>
       )}

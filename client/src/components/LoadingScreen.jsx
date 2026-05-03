@@ -1,34 +1,24 @@
-/**
- * LoadingScreen — shown while AuthContext verifies the JWT on app mount.
- * Prevents the login page from flashing for already-authenticated users.
- */
+import { MessageSquare } from 'lucide-react';
+
 const LoadingScreen = () => (
-  <div className="min-h-screen bg-nt-bg flex flex-col items-center justify-center gap-5">
-    {/* Animated logo */}
+  <div className="min-h-screen flex flex-col items-center justify-center gap-6"
+       style={{ background: '#011F1B' }}>
     <div className="relative">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-nt-blue to-nt-cyan flex items-center justify-center shadow-2xl shadow-nt-blue/30">
-        <span className="text-white text-2xl font-black">N</span>
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center border-2"
+           style={{ background: 'linear-gradient(135deg, #FFEFB2, #F5DC6E)', borderColor: 'rgba(255,239,178,0.3)' }}>
+        <MessageSquare size={30} strokeWidth={2.5} style={{ color: '#013E37' }} />
       </div>
-      {/* Orbit ring */}
-      <div className="absolute inset-0 rounded-2xl border-2 border-nt-blue/30 animate-ping" />
+      <div className="absolute inset-0 rounded-2xl border-2 animate-ping"
+           style={{ borderColor: 'rgba(255,239,178,0.2)' }} />
     </div>
-
-    {/* Brand */}
     <div className="text-center">
-      <h1 className="text-2xl font-bold text-nt-text tracking-tight">
-        Nex<span className="text-nt-blue">Talk</span>
-      </h1>
-      <p className="text-nt-muted text-sm mt-1">Loading your workspace…</p>
+      <h1 className="text-2xl font-black tracking-tight" style={{ color: '#FFEFB2' }}>NexTalk</h1>
+      <p className="text-xs mt-1" style={{ color: '#7A9E99' }}>Loading your workspace…</p>
     </div>
-
-    {/* Dot loader */}
     <div className="flex gap-1.5">
-      {[0, 160, 320].map((delay) => (
-        <div
-          key={delay}
-          className="w-2 h-2 rounded-full bg-nt-blue/60 animate-bounce"
-          style={{ animationDelay: `${delay}ms` }}
-        />
+      {[0, 160, 320].map((d) => (
+        <div key={d} className="w-2 h-2 rounded-full animate-bounce"
+             style={{ background: '#FFEFB2', opacity: 0.6, animationDelay: `${d}ms` }} />
       ))}
     </div>
   </div>

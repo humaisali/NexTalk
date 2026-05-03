@@ -1,22 +1,18 @@
 import { useSocket } from '../context/SocketContext';
-import { FiWifiOff, FiRefreshCw } from 'react-icons/fi';
+import { WifiOff, RefreshCw } from 'lucide-react';
 
-/**
- * ConnectionBanner — a slim yellow/red bar shown below Navbar
- * when the socket is disconnected or reconnecting.
- * Renders nothing when connected.
- */
 const ConnectionBanner = () => {
   const { isConnected, isReconnecting } = useSocket();
-
   if (isConnected) return null;
-
   return (
-    <div className={`flex items-center justify-center gap-2 py-1.5 text-xs font-medium flex-shrink-0
-      ${isReconnecting ? 'bg-nt-warning/15 text-nt-warning border-b border-nt-warning/20' : 'bg-nt-danger/15 text-nt-danger border-b border-nt-danger/20'}`}>
+    <div className="flex items-center justify-center gap-2 py-1.5 text-xs font-medium flex-shrink-0 border-b"
+         style={isReconnecting
+           ? { background: 'rgba(252,211,77,0.1)', color: '#FCD34D', borderColor: 'rgba(252,211,77,0.2)' }
+           : { background: 'rgba(248,113,113,0.1)', color: '#F87171', borderColor: 'rgba(248,113,113,0.2)' }
+         }>
       {isReconnecting
-        ? <><FiRefreshCw size={11} className="animate-spin" /> Reconnecting to NexTalk…</>
-        : <><FiWifiOff   size={11} /> You are offline</>
+        ? <><RefreshCw size={11} className="animate-spin" />Reconnecting to NexTalk…</>
+        : <><WifiOff   size={11} />You are offline</>
       }
     </div>
   );

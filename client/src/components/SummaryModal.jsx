@@ -1,31 +1,14 @@
 import { useEffect, useState } from 'react';
-import { FiX, FiZap, FiCopy, FiCheck, FiRefreshCw, FiMessageSquare } from 'react-icons/fi';
+import { X, Zap, Copy, Check, RefreshCw, MessageSquare } from 'lucide-react';
 
-/**
- * SummaryModal — "Catch Me Up" AI summary modal.
- *
- * Props:
- *   isOpen       — boolean
- *   onClose      — fn
- *   summary      — string  (bullet points separated by \n)
- *   keyTopics    — string[] (2-3 word topic labels)
- *   messageCount — number of messages summarized
- *   isLoading    — boolean
- *   onGenerate   — fn() triggers AI summarize call
- */
 const SummaryModal = ({ isOpen, onClose, summary, keyTopics = [], messageCount = 0, isLoading, onGenerate }) => {
   const [copied, setCopied] = useState(false);
 
-  // Auto-generate when modal opens
+  useEffect(() => { if (isOpen && !summary && !isLoading) onGenerate?.(); }, [isOpen]);
   useEffect(() => {
-    if (isOpen && !summary && !isLoading) onGenerate?.();
-  }, [isOpen]);
-
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose?.(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    const h = (e) => { if (e.key === 'Escape') onClose?.(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
   }, [onClose]);
 
   if (!isOpen) return null;
@@ -42,119 +25,115 @@ const SummaryModal = ({ isOpen, onClose, summary, keyTopics = [], messageCount =
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
-    >
-      <div className="w-full max-w-lg bg-nt-surface border border-nt-border rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style={{ background: 'rgba(0,0,0,0.7)' }}
+         onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}>
+      <div className="w-full max-w-lg rounded-nt-xl overflow-hidden shadow-nt-float animate-slide-up border"
+           style={{ background: '#012B26', borderColor: '#025A50' }}>
 
-        {/* ── Header ──────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-nt-border bg-gradient-to-r from-nt-blue/10 to-nt-cyan/5">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b"
+             style={{ borderColor: '#025A50', background: '#013E37' }}>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-nt-blue/30 to-nt-cyan/30 border border-nt-blue/20 flex items-center justify-center">
-              <FiZap size={16} className="text-nt-cyan" />
+            <div className="w-9 h-9 rounded-nt flex items-center justify-center"
+                 style={{ background: 'rgba(255,239,178,0.1)', border: '1px solid rgba(255,239,178,0.2)' }}>
+              <Zap size={18} style={{ color: '#FFEFB2' }} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-nt-text">Catch Me Up</h3>
-              <p className="text-xs text-nt-muted">AI-powered conversation summary</p>
+              <h3 className="text-sm font-bold" style={{ color: '#FFEFB2' }}>Catch Me Up</h3>
+              <p className="text-xs" style={{ color: '#7A9E99' }}>AI-generated conversation summary</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-nt-muted hover:text-nt-text hover:bg-nt-surface2 rounded-lg transition-all">
-            <FiX size={16} />
+          <button onClick={onClose} className="p-1.5 rounded-lg transition-all"
+                  style={{ color: '#7A9E99' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#FFEFB2'; e.currentTarget.style.background = 'rgba(255,239,178,0.08)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = '#7A9E99'; e.currentTarget.style.background = 'transparent'; }}>
+            <X size={16} />
           </button>
         </div>
 
-        {/* ── Stats bar (when loaded) ──────────────────────────── */}
+        {/* Stats + topics */}
         {!isLoading && summary && (
-          <div className="flex items-center gap-4 px-6 py-2.5 border-b border-nt-border bg-nt-surface2/40">
-            <div className="flex items-center gap-1.5 text-xs text-nt-muted">
-              <FiMessageSquare size={11} />
+          <div className="px-6 py-3 border-b flex flex-wrap items-center gap-3"
+               style={{ borderColor: '#025A50', background: 'rgba(255,239,178,0.03)' }}>
+            <div className="flex items-center gap-1.5 text-xs" style={{ color: '#7A9E99' }}>
+              <MessageSquare size={11} />
               <span>{messageCount} messages summarized</span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-nt-muted">
-              <FiZap size={11} className="text-nt-cyan" />
-              <span>{bullets.length} key points</span>
-            </div>
-          </div>
-        )}
-
-        {/* ── Key topics (when loaded) ─────────────────────────── */}
-        {!isLoading && keyTopics.length > 0 && (
-          <div className="flex items-center gap-2 px-6 py-3 border-b border-nt-border flex-wrap">
-            <span className="text-xs text-nt-muted flex-shrink-0">Topics:</span>
-            {keyTopics.map((t, i) => (
-              <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-nt-blue/10 border border-nt-blue/20 text-nt-blue font-medium">
+            {keyTopics.map((t) => (
+              <span key={t} className="text-xs px-2.5 py-1 rounded-full"
+                    style={{ background: 'rgba(255,239,178,0.1)', border: '1px solid rgba(255,239,178,0.2)', color: '#FFEFB2' }}>
                 {t}
               </span>
             ))}
           </div>
         )}
 
-        {/* ── Body ────────────────────────────────────────────── */}
+        {/* Body */}
         <div className="px-6 py-5 min-h-[160px]">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-10 gap-4">
               <div className="flex gap-2">
-                {[0, 200, 400].map((delay) => (
-                  <div key={delay} className="w-2.5 h-2.5 rounded-full bg-nt-cyan animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+                {[0,200,400].map((d) => (
+                  <div key={d} className="w-2.5 h-2.5 rounded-full animate-bounce"
+                       style={{ background: '#FFEFB2', animationDelay: `${d}ms` }} />
                 ))}
               </div>
               <div className="text-center">
-                <p className="text-sm text-nt-text font-medium">Reading the conversation…</p>
-                <p className="text-xs text-nt-muted mt-1">Gemini is catching you up</p>
+                <p className="text-sm font-medium" style={{ color: '#FFEFB2' }}>Reading the conversation…</p>
+                <p className="text-xs mt-1" style={{ color: '#7A9E99' }}>Gemini is catching you up</p>
               </div>
             </div>
           ) : bullets.length > 0 ? (
             <ul className="space-y-3.5">
               {bullets.map((line, i) => (
-                <li key={i} className="flex items-start gap-3 group">
-                  <div className="w-6 h-6 rounded-lg bg-nt-blue/15 border border-nt-blue/25 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-nt-blue text-xs font-bold">{i + 1}</span>
+                <li key={i} className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                       style={{ background: 'rgba(255,239,178,0.12)', border: '1px solid rgba(255,239,178,0.2)' }}>
+                    <span className="text-xs font-bold" style={{ color: '#FFEFB2' }}>{i + 1}</span>
                   </div>
-                  <p className="text-sm text-nt-text leading-relaxed flex-1">{line}</p>
+                  <p className="text-sm leading-relaxed" style={{ color: '#D4C98A' }}>{line}</p>
                 </li>
               ))}
             </ul>
           ) : (
             <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-              <span className="text-4xl">📭</span>
-              <p className="text-sm text-nt-muted">No messages to summarize yet.</p>
-              <p className="text-xs text-nt-muted/60">Start chatting and come back here.</p>
+              <MessageSquare size={36} style={{ color: '#025A50' }} />
+              <p className="text-sm" style={{ color: '#7A9E99' }}>No messages to summarize yet.</p>
             </div>
           )}
         </div>
 
-        {/* ── Footer ──────────────────────────────────────────── */}
-        <div className="px-6 py-4 border-t border-nt-border bg-nt-surface2/30 flex items-center justify-between gap-3">
-          <p className="text-xs text-nt-muted/60 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-nt-cyan/60 inline-block" />
+        {/* Footer */}
+        <div className="px-6 py-4 border-t flex items-center justify-between gap-3"
+             style={{ borderColor: '#025A50', background: '#013E37' }}>
+          <p className="text-xs flex items-center gap-1.5" style={{ color: 'rgba(122,158,153,0.6)' }}>
+            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#60D4C8' }} />
             Powered by Google Gemini
           </p>
           <div className="flex gap-2">
-            {/* Copy button */}
             {bullets.length > 0 && !isLoading && (
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-nt-border text-nt-muted hover:text-nt-text hover:border-nt-blue/40 transition-all"
-              >
-                {copied ? <FiCheck size={11} className="text-nt-success" /> : <FiCopy size={11} />}
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
+              <>
+                <button onClick={handleCopy}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-nt border transition-all"
+                  style={{ borderColor: '#025A50', color: '#7A9E99' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#FFEFB2'; e.currentTarget.style.color = '#FFEFB2'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#025A50'; e.currentTarget.style.color = '#7A9E99'; }}>
+                  {copied ? <Check size={11} style={{ color: '#4ADE80' }} /> : <Copy size={11} />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+                <button onClick={onGenerate}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-nt border transition-all"
+                  style={{ borderColor: '#025A50', color: '#7A9E99' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#FFEFB2'; e.currentTarget.style.color = '#FFEFB2'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#025A50'; e.currentTarget.style.color = '#7A9E99'; }}>
+                  <RefreshCw size={11} />Regenerate
+                </button>
+              </>
             )}
-            {/* Regenerate */}
-            {summary && !isLoading && (
-              <button
-                onClick={onGenerate}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-nt-border text-nt-muted hover:text-nt-text hover:border-nt-blue/40 transition-all"
-              >
-                <FiRefreshCw size={11} />
-                Regenerate
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              className="text-xs px-4 py-1.5 rounded-lg bg-nt-blue hover:bg-blue-500 text-white font-semibold transition-colors"
-            >
+            <button onClick={onClose}
+              className="text-xs px-4 py-1.5 rounded-nt font-semibold transition-all active:scale-95"
+              style={{ background: '#FFEFB2', color: '#013E37' }}>
               Got it
             </button>
           </div>

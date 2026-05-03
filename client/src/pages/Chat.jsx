@@ -16,6 +16,7 @@ import DirectChatWindow         from '../components/DirectChatWindow';
 import StartConversation        from '../components/StartConversation';
 import EditProfileModal         from '../components/EditProfileModal';
 import RoomSettings             from '../components/RoomSettings';
+import RoomInfoPanel            from '../components/RoomInfoPanel';
 
 const Chat = () => {
   const { user }                                               = useAuth();
@@ -46,6 +47,7 @@ const Chat = () => {
   const [showNewChat,      setShowNewChat]      = useState(false);
   const [showEditProfile,  setShowEditProfile]  = useState(false);
   const [showRoomSettings, setShowRoomSettings] = useState(false);
+  const [showInfoPanel,    setShowInfoPanel]    = useState(true);
   const reconnectShown = useRef(false);
 
   // ── Reconnect toast ────────────────────────────────────────────
@@ -56,7 +58,7 @@ const Chat = () => {
     }
     if (!isReconnecting && reconnectShown.current) {
       reconnectShown.current = false;
-      toast.success('Reconnected! ✅');
+      toast.success('Reconnected!');
     }
   }, [isReconnecting]);
 
@@ -76,10 +78,7 @@ const Chat = () => {
   }, [explanations]);
 
   // ── Handlers ──────────────────────────────────────────────────
-  const goToRoom = (room) => {
-    closeConversation();
-    handleSelectRoom(room);
-  };
+  const goToRoom = (room) => { closeConversation(); handleSelectRoom(room); };
 
   const handleCreateAndJoin = async (name, desc) => {
     try {
@@ -115,30 +114,28 @@ const Chat = () => {
     summarize(textMsgs);
   };
 
-  const handleRoomLeft = () => {
-    if (activeRoom) removeRoomFromList(activeRoom._id);
-  };
-
-  const handleRoomUpdated = (updatedRoom) => {
-    updateRoomInList(updatedRoom);
-  };
+  const handleRoomLeft    = () => { if (activeRoom) removeRoomFromList(activeRoom._id); };
+  const handleRoomUpdated = (r) => updateRoomInList(r);
 
   const recentMessages = messages.filter((m) => m.type !== 'system').slice(-5);
-  const showDM    = !!activeConversation;
-  const showRoom  = !!activeRoom && !showDM;
-  const showEmpty = !showDM && !showRoom;
+  const showDM         = !!activeConversation;
+  const showRoom       = !!activeRoom && !showDM;
+  const showEmpty      = !showDM && !showRoom;
 
   return (
-    <div className="flex flex-col h-screen bg-nt-bg overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#011F1B' }}>
 
+      {/* Top Navbar */}
       <Navbar
         onSummaryOpen={() => { setSummaryOpen(true); handleSummarize(); }}
         onRoomSettings={() => activeRoom && setShowRoomSettings(true)}
       />
       <ConnectionBanner />
 
+      {/* 3-column layout like Image 1 */}
       <div className="flex flex-1 overflow-hidden">
 
+        {/* Column 1 — Sidebar (left) */}
         <Sidebar
           rooms={rooms}
           roomsLoading={roomsLoading}
@@ -154,7 +151,9 @@ const Chat = () => {
           onEditProfile={() => setShowEditProfile(true)}
         />
 
-        <div className="flex-1 flex flex-col overflow-hidden bg-nt-bg relative">
+        {/* Column 2 — Main chat area */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0"
+             style={{ background: '#011F1B' }}>
 
           {/* Private DM */}
           {showDM && (
@@ -168,7 +167,7 @@ const Chat = () => {
             />
           )}
 
-          {/* Group Room */}
+          {/* Group room */}
           {showRoom && (
             <>
               <ChatWindow
@@ -188,43 +187,61 @@ const Chat = () => {
             </>
           )}
 
-          {/* Empty state */}
+          {/* Empty / welcome state */}
           {showEmpty && (
             <div className="flex-1 flex items-center justify-center animate-fade-in">
-              <div className="text-center space-y-4 px-6 max-w-sm">
-                <div className="w-16 h-16 rounded-2xl bg-nt-surface border border-nt-border flex items-center justify-center text-3xl mx-auto shadow-lg">
-                  💬
+              <div className="text-center space-y-5 px-6 max-w-sm">
+                {/* Dummy logo placeholder */}
+                <div className="w-20 h-20 rounded-2xl border-2 flex items-center justify-center mx-auto"
+                     style={{ background: 'linear-gradient(135deg, #FFEFB2, #F5DC6E)', borderColor: 'rgba(255,239,178,0.3)' }}>
+                  <span className="text-4xl font-black" style={{ color: '#013E37' }}>N</span>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-nt-text">Welcome to NexTalk</h2>
-                  <p className="text-nt-muted text-sm mt-1.5 leading-relaxed">
-                    Join a <strong className="text-nt-text">Room</strong> via invite link, or start a <strong className="text-nt-text">Direct Message</strong> using a NexTalk number.
+                  <h2 className="text-xl font-bold" style={{ color: '#FFEFB2' }}>Welcome to NexTalk</h2>
+                  <p className="text-sm mt-2 leading-relaxed" style={{ color: '#7A9E99' }}>
+                    Select a <strong style={{ color: '#D4C98A' }}>Room</strong> to join the conversation,
+                    or start a <strong style={{ color: '#D4C98A' }}>Direct Message</strong> using a NexTalk number.
                   </p>
                 </div>
+
+                {/* User's NexTalk number */}
                 {user?.nexTalkNumber && (
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-xs text-nt-muted">Your NexTalk number:</span>
-                    <div className="font-mono font-bold text-nt-blue text-lg tracking-widest px-4 py-2 rounded-xl bg-nt-blue/10 border border-nt-blue/25">
+                  <div className="rounded-nt border p-3 text-center"
+                       style={{ background: 'rgba(255,239,178,0.06)', borderColor: '#025A50' }}>
+                    <p className="text-xs mb-1" style={{ color: '#7A9E99' }}>Your NexTalk number</p>
+                    <p className="font-mono font-bold text-lg tracking-widest" style={{ color: '#FFEFB2' }}>
                       {user.nexTalkNumber.replace(/^(\+100)(\d{7})$/, '+100 $2')}
-                    </div>
-                    <span className="text-xs text-nt-muted/60">Share with friends to receive messages</span>
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'rgba(122,158,153,0.5)' }}>Share this with friends so they can message you</p>
                   </div>
                 )}
-                <div className="flex flex-wrap gap-2 justify-center pt-1">
-                  {['✨ Tone Analyzer','⚡ Smart Replies','🌐 Auto-Translate',
-                    '🔥 Mood Rooms','📋 Catch Me Up','💻 Code + AI Explain','🔒 Private DMs'].map((f) => (
-                    <span key={f} className="text-xs px-3 py-1.5 rounded-full bg-nt-surface border border-nt-border text-nt-muted">{f}</span>
+
+                {/* Feature chips */}
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {['Tone Analyzer','Smart Replies','Auto-Translate','Mood Rooms','Catch Me Up','Code + AI Explain','Private DMs'].map((f) => (
+                    <span key={f} className="text-xs px-3 py-1.5 rounded-full border"
+                          style={{ background: 'rgba(255,239,178,0.05)', borderColor: '#025A50', color: '#7A9E99' }}>
+                      {f}
+                    </span>
                   ))}
                 </div>
               </div>
             </div>
           )}
         </div>
+
+        {/* Column 3 — Info Panel (right, like Image 1) */}
+        {(showRoom || showDM) && showInfoPanel && (
+          <RoomInfoPanel
+            room={showRoom ? activeRoom : null}
+            conversation={showDM ? activeConversation : null}
+            onClose={() => setShowInfoPanel(false)}
+            currentUserId={user?._id?.toString()}
+          />
+        )}
       </div>
 
       {/* ── Modals ────────────────────────────────────────────────── */}
-
-      {/* Catch Me Up */}
       <SummaryModal
         isOpen={summaryOpen}
         onClose={() => setSummaryOpen(false)}
@@ -235,7 +252,6 @@ const Chat = () => {
         onGenerate={handleSummarize}
       />
 
-      {/* Room settings */}
       {showRoomSettings && activeRoom && (
         <RoomSettings
           room={activeRoom}
@@ -245,7 +261,6 @@ const Chat = () => {
         />
       )}
 
-      {/* New DM */}
       {showNewChat && (
         <StartConversation
           onStart={handleConversationStart}
@@ -253,7 +268,6 @@ const Chat = () => {
         />
       )}
 
-      {/* Edit profile */}
       {showEditProfile && (
         <EditProfileModal onClose={() => setShowEditProfile(false)} />
       )}

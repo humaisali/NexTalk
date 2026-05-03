@@ -1,80 +1,47 @@
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { FiEye, FiEyeOff, FiSend } from 'react-icons/fi';
+import { EyeOff, Send } from 'lucide-react';
 
-/**
- * CodePreview — shows a live syntax-highlighted preview of the code
- * the user is about to send. Appears above the input when toggled.
- *
- * Props:
- *   code     — string content to preview
- *   language — programming language for syntax highlighting
- *   onSend   — fn() triggered when user clicks "Send this code"
- *   onHide   — fn() to collapse the preview
- */
 const CodePreview = ({ code, language, onSend, onHide }) => {
   if (!code?.trim()) return null;
-
   const lines = code.split('\n').length;
-
   return (
-    <div className="rounded-2xl overflow-hidden border border-nt-cyan/40 bg-[#1E1E1E] shadow-lg shadow-nt-cyan/10">
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#2D2D2D] border-b border-nt-border/60">
+    <div className="rounded-xl overflow-hidden border shadow-nt-card"
+         style={{ background: '#1E1E2E', borderColor: 'rgba(96,212,200,0.3)' }}>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b"
+           style={{ background: '#181825', borderColor: '#025A50' }}>
         <div className="flex items-center gap-3">
-          {/* macOS traffic lights */}
           <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
-            <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
-            <div className="w-3 h-3 rounded-full bg-[#27C93F]" />
+            <div className="w-3 h-3 rounded-full" style={{ background: '#FF5F56' }} />
+            <div className="w-3 h-3 rounded-full" style={{ background: '#FFBD2E' }} />
+            <div className="w-3 h-3 rounded-full" style={{ background: '#27C93F' }} />
           </div>
-          <span className="text-xs text-nt-cyan font-mono font-semibold">{language}</span>
-          <span className="text-xs text-nt-muted">{lines} {lines === 1 ? 'line' : 'lines'}</span>
+          <span className="text-xs font-mono font-semibold" style={{ color: '#60D4C8' }}>{language}</span>
+          <span className="text-xs" style={{ color: '#7A9E99' }}>{lines} {lines === 1 ? 'line' : 'lines'}</span>
         </div>
-
         <div className="flex items-center gap-2">
-          <button
-            onClick={onHide}
-            className="flex items-center gap-1 text-xs text-nt-muted hover:text-nt-text px-2 py-1 rounded-lg hover:bg-nt-surface2 transition-colors"
-            title="Hide preview"
-          >
-            <FiEyeOff size={11} />
-            <span>Hide</span>
+          <button onClick={onHide}
+            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-all"
+            style={{ color: '#7A9E99' }}>
+            <EyeOff size={11} /><span>Hide</span>
           </button>
-          <button
-            onClick={onSend}
-            className="flex items-center gap-1.5 text-xs bg-nt-blue hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg font-semibold transition-colors"
-          >
-            <FiSend size={11} />
-            <span>Send Code</span>
+          <button onClick={onSend}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+            style={{ background: '#FFEFB2', color: '#013E37' }}>
+            <Send size={11} /><span>Send Code</span>
           </button>
         </div>
       </div>
-
-      {/* Syntax highlighted code */}
-      <div className="max-h-52 overflow-auto">
-        <SyntaxHighlighter
-          language={language}
-          style={vscDarkPlus}
-          customStyle={{
-            margin: 0,
-            padding: '1rem',
-            background: 'transparent',
-            fontSize: '0.78rem',
-            lineHeight: '1.65'
-          }}
-          showLineNumbers
-          lineNumberStyle={{ color: '#3a3a3a', minWidth: '2.5em', fontSize: '0.7rem' }}
-        >
+      <div className="max-h-48 overflow-auto">
+        <SyntaxHighlighter language={language} style={vscDarkPlus}
+          customStyle={{ margin: 0, padding: '0.75rem', background: 'transparent', fontSize: '0.75rem', lineHeight: '1.6' }}
+          showLineNumbers lineNumberStyle={{ color: '#3a3a5c', fontSize: '0.7rem' }}>
           {code}
         </SyntaxHighlighter>
       </div>
-
-      {/* Footer hint */}
-      <div className="px-4 py-2 bg-[#2D2D2D]/70 border-t border-nt-border/40">
-        <p className="text-xs text-nt-muted/60">
-          <span className="text-nt-cyan/70">AI will auto-explain</span> this snippet for everyone in the room
+      <div className="px-4 py-2 border-t" style={{ borderColor: '#025A50', background: 'rgba(96,212,200,0.04)' }}>
+        <p className="text-xs" style={{ color: '#7A9E99' }}>
+          <span style={{ color: '#60D4C8' }}>AI will auto-explain</span> this snippet for everyone in the room
         </p>
       </div>
     </div>

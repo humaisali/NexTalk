@@ -2,108 +2,51 @@ import { useState, useRef } from 'react';
 import { useAuth }      from '../context/AuthContext';
 import { useToast }     from '../context/ToastContext';
 import { updateProfile } from '../services/api';
-import {
-  FiX, FiUser, FiLock, FiCamera, FiCheck,
-  FiEye, FiEyeOff, FiSave, FiTrash2, FiHash
-} from 'react-icons/fi';
+import { X, Lock, Camera, Check, Eye, EyeOff, Save, Trash2, Hash, User, Shield } from 'lucide-react';
 
-const pwRules = (pw) => ({
-  length: pw.length >= 6,
-  letter: /[a-zA-Z]/.test(pw),
-  number: /\d/.test(pw),
-});
+const pwRules = (pw) => ({ length: pw.length >= 6, letter: /[a-zA-Z]/.test(pw), number: /\d/.test(pw) });
 
-/**
- * EditProfileModal — full profile editor.
- *
- * Sections:
- *   1. Avatar — upload image (stored as base64), or clear it
- *   2. Username — change with uniqueness check
- *   3. Password — change with current password verification + strength rules
- *
- * Props:
- *   onClose — fn()
- */
 const EditProfileModal = ({ onClose }) => {
   const { user, updateUser } = useAuth();
   const toast                = useToast();
 
-  // ── Avatar state ─────────────────────────────────────────────────
-  const [avatarPreview,  setAvatarPreview]  = useState(user?.avatar || '');
-  const [avatarChanged,  setAvatarChanged]  = useState(false);
-  const fileInputRef                        = useRef(null);
-
-  // ── Username state ────────────────────────────────────────────────
-  const [username,       setUsername]       = useState(user?.username || '');
-  const [usernameError,  setUsernameError]  = useState('');
-
-  // ── Password state ────────────────────────────────────────────────
-  const [currentPw,      setCurrentPw]      = useState('');
-  const [newPw,          setNewPw]          = useState('');
-  const [confirmPw,      setConfirmPw]      = useState('');
-  const [showCurrentPw,  setShowCurrentPw]  = useState(false);
-  const [showNewPw,      setShowNewPw]      = useState(false);
-  const [pwTouched,      setPwTouched]      = useState(false);
-
-  // ── Save state ────────────────────────────────────────────────────
-  const [saving, setSaving] = useState(false);
-  const [section, setSection] = useState('profile'); // 'profile' | 'password'
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar || '');
+  const [avatarChanged, setAvatarChanged] = useState(false);
+  const [username,      setUsername]      = useState(user?.username || '');
+  const [usernameError, setUsernameError] = useState('');
+  const [currentPw,     setCurrentPw]     = useState('');
+  const [newPw,         setNewPw]         = useState('');
+  const [confirmPw,     setConfirmPw]     = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw,     setShowNewPw]     = useState(false);
+  const [pwTouched,     setPwTouched]     = useState(false);
+  const [saving,        setSaving]        = useState(false);
+  const [section,       setSection]       = useState('profile');
+  const fileInputRef = useRef(null);
 
   const rules        = pwRules(newPw);
   const allRulesPass = Object.values(rules).every(Boolean);
 
-  // ── Avatar handlers ───────────────────────────────────────────────
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file (JPG, PNG, etc.)');
-      return;
-    }
-    if (file.size > 512 * 1024) {
-      toast.error('Image too large. Please choose an image under 500KB.');
-      return;
-    }
-
+    if (!file.type.startsWith('image/')) { toast.error('Please select an image file.'); return; }
+    if (file.size > 512 * 1024) { toast.error('Image too large. Max 500KB.'); return; }
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setAvatarPreview(ev.target.result);
-      setAvatarChanged(true);
-    };
+    reader.onload = (ev) => { setAvatarPreview(ev.target.result); setAvatarChanged(true); };
     reader.readAsDataURL(file);
   };
 
-  const clearAvatar = () => {
-    setAvatarPreview('');
-    setAvatarChanged(true);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  // ── Save profile (username + avatar) ─────────────────────────────
   const handleSaveProfile = async () => {
     setUsernameError('');
     const trimmed = username.trim();
-
-    if (trimmed.length < 3) {
-      setUsernameError('Username must be at least 3 characters.');
-      return;
-    }
-
-    const noUsernameChange = trimmed === user?.username;
-    const noAvatarChange   = !avatarChanged;
-
-    if (noUsernameChange && noAvatarChange) {
-      toast.info('No changes to save.');
-      return;
-    }
-
+    if (trimmed.length < 3) { setUsernameError('Username must be at least 3 characters.'); return; }
+    if (trimmed === user?.username && !avatarChanged) { toast.info('No changes to save.'); return; }
     setSaving(true);
     try {
       const payload = {};
-      if (!noUsernameChange) payload.username = trimmed;
-      if (!noAvatarChange)   payload.avatar   = avatarPreview;
-
+      if (trimmed !== user?.username) payload.username = trimmed;
+      if (avatarChanged) payload.avatar = avatarPreview;
       const { data } = await updateProfile(payload);
       updateUser(data.user);
       toast.success('Profile updated!');
@@ -112,292 +55,199 @@ const EditProfileModal = ({ onClose }) => {
       const msg = err?.response?.data?.message || 'Failed to update profile.';
       if (msg.toLowerCase().includes('username')) setUsernameError(msg);
       else toast.error(msg);
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
-  // ── Save password ─────────────────────────────────────────────────
   const handleSavePassword = async () => {
     setPwTouched(true);
-
-    if (!currentPw)         { toast.error('Enter your current password.'); return; }
-    if (!allRulesPass)      { toast.error('New password does not meet requirements.'); return; }
-    if (newPw !== confirmPw){ toast.error('Passwords do not match.'); return; }
-
+    if (!currentPw) { toast.error('Enter your current password.'); return; }
+    if (!allRulesPass) { toast.error('New password does not meet requirements.'); return; }
+    if (newPw !== confirmPw) { toast.error('Passwords do not match.'); return; }
     setSaving(true);
     try {
       await updateProfile({ currentPassword: currentPw, newPassword: newPw });
-      toast.success('Password changed successfully!');
+      toast.success('Password changed!');
       setCurrentPw(''); setNewPw(''); setConfirmPw(''); setPwTouched(false);
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Failed to change password.');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
-  // ── Avatar display ────────────────────────────────────────────────
-  const initials = (user?.username || 'U')[0].toUpperCase();
-  const showImg  = avatarPreview && avatarPreview.startsWith('data:');
+  const hasImg = avatarPreview?.startsWith?.('data:image/') || avatarPreview?.startsWith?.('http');
+
+  const inputStyle = {
+    borderBottom: '1.5px solid #025A50', background: 'transparent',
+    color: '#FFEFB2', caretColor: '#FFEFB2',
+    outline: 'none', width: '100%', fontSize: '14px', padding: '8px 0',
+  };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="w-full max-w-md bg-nt-surface border border-nt-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style={{ background: 'rgba(0,0,0,0.7)' }}
+         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-md rounded-nt-xl overflow-hidden shadow-nt-float border animate-slide-up"
+           style={{ background: '#012B26', borderColor: '#025A50' }}>
 
-        {/* ── Header ──────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-nt-border bg-nt-surface2/50">
-          <h3 className="text-base font-bold text-nt-text">Edit Profile</h3>
-          <button onClick={onClose} className="p-1.5 text-nt-muted hover:text-nt-text hover:bg-nt-surface rounded-lg transition-all">
-            <FiX size={16} />
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b"
+             style={{ borderColor: '#025A50', background: '#013E37' }}>
+          <h3 className="text-base font-bold" style={{ color: '#FFEFB2' }}>Edit Profile</h3>
+          <button onClick={onClose} style={{ color: '#7A9E99' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#FFEFB2'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
+            <X size={16} />
           </button>
         </div>
 
-        {/* ── Tab bar ─────────────────────────────────────────────── */}
-        <div className="flex border-b border-nt-border">
-          {[
-            { key: 'profile',  label: 'Profile',  icon: <FiUser size={13} /> },
-            { key: 'password', label: 'Password', icon: <FiLock size={13} /> }
-          ].map(({ key, label, icon }) => (
-            <button
-              key={key}
-              onClick={() => setSection(key)}
+        {/* Tabs */}
+        <div className="flex border-b" style={{ borderColor: '#025A50' }}>
+          {[{ key:'profile', label:'Profile', icon: User }, { key:'password', label:'Password', icon: Lock }].map(({ key, label, icon: Icon }) => (
+            <button key={key} onClick={() => setSection(key)}
               className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold border-b-2 transition-all
-                ${section === key
-                  ? 'text-nt-blue border-nt-blue bg-nt-blue/5'
-                  : 'text-nt-muted border-transparent hover:text-nt-text hover:bg-nt-surface2'}`}
-            >
-              {icon}{label}
+                ${section === key ? 'border-primary text-primary' : 'border-transparent text-nt-muted hover:text-nt-text2'}`}>
+              <Icon size={13} />{label}
             </button>
           ))}
         </div>
 
-        {/* ── PROFILE SECTION ─────────────────────────────────────── */}
+        {/* PROFILE SECTION */}
         {section === 'profile' && (
           <div className="px-6 py-5 space-y-5">
-
             {/* Avatar */}
             <div className="flex flex-col items-center gap-3">
-              <div className="relative group">
-                {/* Avatar circle */}
-                <div className={`w-24 h-24 rounded-full border-2 border-nt-border flex items-center justify-center overflow-hidden
-                  ${showImg ? '' : 'bg-gradient-to-br from-nt-blue/80 to-nt-cyan/60'}`}>
-                  {showImg
+              <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <div className="w-24 h-24 rounded-full overflow-hidden border-2 flex items-center justify-center"
+                     style={{ borderColor: '#025A50', background: hasImg ? 'transparent' : 'linear-gradient(135deg, #FFEFB2, #F5DC6E)' }}>
+                  {hasImg
                     ? <img src={avatarPreview} alt="avatar" className="w-full h-full object-cover" />
-                    : <span className="text-3xl font-black text-white">{initials}</span>
+                    : <span className="text-3xl font-black" style={{ color: '#013E37' }}>{user?.username?.[0]?.toUpperCase()}</span>
                   }
                 </div>
-
-                {/* Camera overlay */}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center
-                    opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                >
-                  <FiCamera size={22} className="text-white" />
-                </button>
+                <div className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                     style={{ background: 'rgba(0,0,0,0.5)' }}>
+                  <Camera size={22} style={{ color: '#FFEFB2' }} />
+                </div>
               </div>
-
-              {/* Upload / clear buttons */}
               <div className="flex gap-2">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-nt-surface2 border border-nt-border text-nt-muted hover:text-nt-text hover:border-nt-blue/40 transition-all"
-                >
-                  <FiCamera size={11} />
-                  {avatarPreview ? 'Change photo' : 'Upload photo'}
+                <button onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-nt border transition-all"
+                  style={{ borderColor: '#025A50', color: '#7A9E99' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#FFEFB2'; e.currentTarget.style.color = '#FFEFB2'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#025A50'; e.currentTarget.style.color = '#7A9E99'; }}>
+                  <Camera size={11} />{avatarPreview ? 'Change photo' : 'Upload photo'}
                 </button>
                 {avatarPreview && (
-                  <button
-                    onClick={clearAvatar}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-nt-danger/10 border border-nt-danger/30 text-nt-danger hover:bg-nt-danger/20 transition-all"
-                  >
-                    <FiTrash2 size={11} />
-                    Remove
+                  <button onClick={() => { setAvatarPreview(''); setAvatarChanged(true); }}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-nt border transition-all"
+                    style={{ borderColor: 'rgba(248,113,113,0.4)', color: '#F87171' }}>
+                    <Trash2 size={11} />Remove
                   </button>
                 )}
               </div>
-
-              <p className="text-xs text-nt-muted/60 text-center">
-                JPG, PNG or GIF · Max 500KB
-              </p>
-
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
+              <p className="text-xs" style={{ color: 'rgba(122,158,153,0.5)' }}>JPG, PNG · Max 500KB</p>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
             </div>
 
             {/* Username */}
             <div>
-              <label className="block text-xs font-semibold text-nt-muted mb-1.5 uppercase tracking-wider">
-                Username
-              </label>
-              <div className="relative">
-                <FiUser size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-nt-muted" />
-                <input
-                  value={username}
-                  onChange={(e) => { setUsernameError(''); setUsername(e.target.value); }}
-                  placeholder="Your username"
-                  className={`nt-input pl-10 ${usernameError ? 'border-nt-danger/60' : ''}`}
-                />
-              </div>
-              {usernameError && (
-                <p className="text-xs text-nt-danger mt-1.5 px-0.5">{usernameError}</p>
-              )}
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: '#7A9E99' }}>Username</label>
+              <input value={username} onChange={(e) => { setUsernameError(''); setUsername(e.target.value); }}
+                placeholder="Your username" style={inputStyle}
+                onFocus={(e) => e.target.style.borderBottomColor = '#FFEFB2'}
+                onBlur={(e)  => e.target.style.borderBottomColor = '#025A50'}
+              />
+              {usernameError && <p className="text-xs mt-1.5" style={{ color: '#F87171' }}>{usernameError}</p>}
             </div>
 
-            {/* NexTalk number — read only */}
+            {/* NexTalk number (read-only) */}
             <div>
-              <label className="block text-xs font-semibold text-nt-muted mb-1.5 uppercase tracking-wider">
-                NexTalk Number
-              </label>
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-nt-surface border border-nt-border text-nt-muted">
-                <FiHash size={13} className="text-nt-blue flex-shrink-0" />
-                <span className="font-mono text-sm text-nt-text font-semibold tracking-widest">
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: '#7A9E99' }}>NexTalk Number</label>
+              <div className="flex items-center gap-2 px-0 py-2 border-b" style={{ borderColor: '#025A50' }}>
+                <Hash size={13} style={{ color: '#60D4C8' }} />
+                <span className="font-mono text-sm font-semibold" style={{ color: '#FFEFB2' }}>
                   {user?.nexTalkNumber?.replace(/^(\+100)(\d{7})$/, '+100 $2') || '—'}
                 </span>
-                <span className="ml-auto text-xs text-nt-muted/60">Cannot be changed</span>
+                <span className="ml-auto text-xs" style={{ color: 'rgba(122,158,153,0.5)' }}>Cannot be changed</span>
               </div>
             </div>
 
-            {/* Email — read only */}
+            {/* Email (read-only) */}
             <div>
-              <label className="block text-xs font-semibold text-nt-muted mb-1.5 uppercase tracking-wider">
-                Email
-              </label>
-              <div className="px-4 py-2.5 rounded-xl bg-nt-surface border border-nt-border text-nt-muted text-sm">
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: '#7A9E99' }}>Email</label>
+              <div className="py-2 border-b text-sm" style={{ borderColor: '#025A50', color: '#7A9E99' }}>
                 {user?.email}
               </div>
             </div>
 
-            {/* Save button */}
-            <button
-              onClick={handleSaveProfile}
-              disabled={saving}
-              className="btn-primary w-full flex items-center justify-center gap-2"
-            >
+            <button onClick={handleSaveProfile} disabled={saving} className="btn-primary w-full flex items-center justify-center gap-2">
               {saving
-                ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
-                : <><FiSave size={14} /> Save Profile</>
+                ? <><div className="w-4 h-4 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />Saving…</>
+                : <><Save size={14} />Save Profile</>
               }
             </button>
           </div>
         )}
 
-        {/* ── PASSWORD SECTION ─────────────────────────────────────── */}
+        {/* PASSWORD SECTION */}
         {section === 'password' && (
           <div className="px-6 py-5 space-y-4">
-
-            {/* Current password */}
-            <div>
-              <label className="block text-xs font-semibold text-nt-muted mb-1.5 uppercase tracking-wider">
-                Current Password
-              </label>
-              <div className="relative">
-                <FiLock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-nt-muted" />
-                <input
-                  type={showCurrentPw ? 'text' : 'password'}
-                  value={currentPw}
-                  onChange={(e) => setCurrentPw(e.target.value)}
-                  placeholder="Your current password"
-                  className="nt-input pl-10 pr-10"
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPw(!showCurrentPw)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-nt-muted hover:text-nt-text transition-colors"
-                >
-                  {showCurrentPw ? <FiEyeOff size={14} /> : <FiEye size={14} />}
-                </button>
-              </div>
-            </div>
-
-            {/* New password */}
-            <div>
-              <label className="block text-xs font-semibold text-nt-muted mb-1.5 uppercase tracking-wider">
-                New Password
-              </label>
-              <div className="relative">
-                <FiLock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-nt-muted" />
-                <input
-                  type={showNewPw ? 'text' : 'password'}
-                  value={newPw}
-                  onChange={(e) => { setPwTouched(true); setNewPw(e.target.value); }}
-                  placeholder="Your new password"
-                  className="nt-input pl-10 pr-10"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPw(!showNewPw)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-nt-muted hover:text-nt-text transition-colors"
-                >
-                  {showNewPw ? <FiEyeOff size={14} /> : <FiEye size={14} />}
-                </button>
-              </div>
-
-              {/* Strength checklist */}
-              {pwTouched && newPw && (
-                <div className="mt-2 space-y-1 px-0.5">
-                  {[
-                    { key: 'length', label: 'At least 6 characters' },
-                    { key: 'letter', label: 'Contains a letter' },
-                    { key: 'number', label: 'Contains a number' },
-                  ].map(({ key, label }) => (
-                    <div key={key} className={`flex items-center gap-1.5 text-xs transition-colors ${rules[key] ? 'text-nt-success' : 'text-nt-muted'}`}>
-                      <FiCheck size={11} className={rules[key] ? 'opacity-100' : 'opacity-30'} />
-                      {label}
-                    </div>
-                  ))}
+            {[
+              { label: 'Current Password', val: currentPw, set: setCurrentPw, show: showCurrentPw, toggle: () => setShowCurrentPw(!showCurrentPw), auto: 'current-password' },
+              { label: 'New Password', val: newPw, set: (v) => { setPwTouched(true); setNewPw(v); }, show: showNewPw, toggle: () => setShowNewPw(!showNewPw), auto: 'new-password' },
+            ].map(({ label, val, set, show, toggle, auto }) => (
+              <div key={label}>
+                <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: '#7A9E99' }}>{label}</label>
+                <div className="relative">
+                  <input type={show ? 'text' : 'password'} value={val}
+                    onChange={(e) => set(e.target.value)}
+                    style={{ ...inputStyle, paddingRight: '2rem' }} autoComplete={auto}
+                    onFocus={(e) => e.target.style.borderBottomColor = '#FFEFB2'}
+                    onBlur={(e)  => e.target.style.borderBottomColor = '#025A50'}
+                  />
+                  <button type="button" onClick={toggle}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 transition-colors"
+                    style={{ color: '#7A9E99' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#FFEFB2'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
+                    {show ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
                 </div>
-              )}
-            </div>
-
-            {/* Confirm password */}
-            <div>
-              <label className="block text-xs font-semibold text-nt-muted mb-1.5 uppercase tracking-wider">
-                Confirm New Password
-              </label>
-              <div className="relative">
-                <FiLock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-nt-muted" />
-                <input
-                  type="password"
-                  value={confirmPw}
-                  onChange={(e) => setConfirmPw(e.target.value)}
-                  placeholder="Repeat new password"
-                  className={`nt-input pl-10 ${
-                    confirmPw && confirmPw !== newPw ? 'border-nt-danger/60' : ''
-                  }`}
-                  autoComplete="new-password"
-                />
+                {label === 'New Password' && pwTouched && newPw && (
+                  <div className="mt-2 flex gap-4 flex-wrap">
+                    {[{k:'length',l:'6+ chars'},{k:'letter',l:'Letter'},{k:'number',l:'Number'}].map(({k,l}) => (
+                      <div key={k} className="flex items-center gap-1 text-xs"
+                           style={{ color: rules[k] ? '#4ADE80' : 'rgba(122,158,153,0.5)' }}>
+                        <Check size={10} style={{ opacity: rules[k] ? 1 : 0.3 }} />{l}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
+            ))}
+
+            {/* Confirm */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: '#7A9E99' }}>Confirm New Password</label>
+              <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)}
+                style={{ ...inputStyle, borderBottomColor: confirmPw && confirmPw !== newPw ? '#F87171' : '#025A50' }}
+                autoComplete="new-password"
+                onFocus={(e) => e.target.style.borderBottomColor = '#FFEFB2'}
+                onBlur={(e)  => e.target.style.borderBottomColor = confirmPw && confirmPw !== newPw ? '#F87171' : '#025A50'}
+              />
               {confirmPw && confirmPw !== newPw && (
-                <p className="text-xs text-nt-danger mt-1.5 px-0.5">Passwords do not match.</p>
+                <p className="text-xs mt-1.5" style={{ color: '#F87171' }}>Passwords do not match.</p>
               )}
             </div>
 
-            {/* Save button */}
-            <button
-              onClick={handleSavePassword}
+            <button onClick={handleSavePassword}
               disabled={saving || !currentPw || !allRulesPass || newPw !== confirmPw}
-              className="btn-primary w-full flex items-center justify-center gap-2"
-            >
+              className="btn-primary w-full flex items-center justify-center gap-2">
               {saving
-                ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
-                : <><FiLock size={14} /> Change Password</>
+                ? <><div className="w-4 h-4 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />Saving…</>
+                : <><Lock size={14} />Change Password</>
               }
             </button>
-
-            <p className="text-xs text-nt-muted/60 text-center">
+            <p className="text-center text-xs" style={{ color: 'rgba(122,158,153,0.5)' }}>
               You will remain logged in after changing your password.
             </p>
           </div>

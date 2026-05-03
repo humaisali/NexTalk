@@ -5,7 +5,7 @@ import SmartReplies     from './SmartReplies';
 import CodePreview      from './CodePreview';
 import useTyping        from '../hooks/useTyping';
 import useCodeShare     from '../hooks/useCodeShare';
-import { FiSend, FiCode, FiX, FiZap } from 'react-icons/fi';
+import { Send, Code, X, Zap, Eye, Bold, Italic, List } from 'lucide-react';
 
 const MAX_CHARS = 4000;
 
@@ -29,32 +29,26 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
   const toneTimerRef   = useRef(null);
   const repliesFetched = useRef(false);
 
-  const charCount = input.length;
+  const charCount  = input.length;
   const isOverLimit = charCount > MAX_CHARS;
 
   const resize = () => {
     const el = textareaRef.current;
-    if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 160)}px`; }
+    if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 140)}px`; }
   };
 
-  // Reset on room change
   useEffect(() => {
     setInput(''); setTone(''); setSuggestion('');
     setReplies([]); repliesFetched.current = false;
-    setSendError('');
-    disableCodeMode();
+    setSendError(''); disableCodeMode();
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   }, [activeRoom?._id]);
 
   const handleChange = (e) => {
     const val = e.target.value;
-    if (val.length > MAX_CHARS + 200) return; // hard cap
-    setInput(val);
-    resize();
-    handleTyping();
-    setSendError('');
+    if (val.length > MAX_CHARS + 200) return;
+    setInput(val); resize(); handleTyping(); setSendError('');
     if (tone) { setTone(''); setSuggestion(''); }
-
     clearTimeout(toneTimerRef.current);
     if (!isCodeMode && onAnalyzeTone && val.trim().length > 10 && val.length <= MAX_CHARS) {
       toneTimerRef.current = setTimeout(async () => {
@@ -62,52 +56,49 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
         try {
           const res = await onAnalyzeTone(val.trim());
           if (res) { setTone(res.tone || ''); setSuggestion(res.suggestion || ''); }
-        } catch { /* silent */ }
-        finally { setIsAnalyzing(false); }
+        } catch { } finally { setIsAnalyzing(false); }
       }, 900);
-    } else if (!val.trim()) {
-      setTone(''); setSuggestion('');
-    }
+    } else if (!val.trim()) { setTone(''); setSuggestion(''); }
   };
 
   const handleFocus = useCallback(async () => {
     if (!onSmartReplies || repliesFetched.current || replies.length > 0) return;
     const textMsgs = recentMessages.filter((m) => m.type !== 'system');
-    if (textMsgs.length === 0) return;
+    if (!textMsgs.length) return;
     repliesFetched.current = true;
     setLoadingReplies(true);
     try {
       const res = await onSmartReplies(textMsgs.slice(-5));
       setReplies(Array.isArray(res) ? res : []);
-    } catch { setReplies([]); }
-    finally { setLoadingReplies(false); }
+    } catch { setReplies([]); } finally { setLoadingReplies(false); }
   }, [onSmartReplies, recentMessages, replies]);
 
   const doSend = (content) => {
     const trimmed = content?.trim();
-    if (!trimmed)           { setSendError('Message cannot be empty.');        return; }
-    if (trimmed.length > MAX_CHARS) { setSendError(`Message too long (max ${MAX_CHARS} chars).`); return; }
-    if (!isConnected)      { setSendError('You are offline. Reconnecting…'); return; }
-    if (!activeRoom)        return;
-
+    if (!trimmed) { setSendError('Message cannot be empty.'); return; }
+    if (trimmed.length > MAX_CHARS) { setSendError(`Max ${MAX_CHARS} characters.`); return; }
+    if (!isConnected) { setSendError('You are offline. Reconnecting…'); return; }
+    if (!activeRoom) return;
     sendMessage({ content: trimmed, type: isCodeMode ? 'code' : 'text', language: isCodeMode ? codeLanguage : '' });
     setInput(''); setTone(''); setSuggestion('');
     setReplies([]); repliesFetched.current = false;
-    setSendError('');
-    cancelTyping(); clearTimeout(toneTimerRef.current);
+    setSendError(''); cancelTyping(); clearTimeout(toneTimerRef.current);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
-  const handleSend    = (e) => { e?.preventDefault(); doSend(input); };
-  const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey && !isCodeMode) { e.preventDefault(); doSend(input); } };
-  const applyTone     = (s)  => { setInput(s); setTone(''); setSuggestion(''); textareaRef.current?.focus(); setTimeout(resize, 0); };
-  const applyReply    = (r)  => { setInput(r); setReplies([]); repliesFetched.current = false; textareaRef.current?.focus(); setTimeout(resize, 0); };
-  const clearAll      = ()   => { setInput(''); setTone(''); setSuggestion(''); setSendError(''); clearTimeout(toneTimerRef.current); if (textareaRef.current) textareaRef.current.style.height = 'auto'; };
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !isCodeMode) { e.preventDefault(); doSend(input); }
+  };
+
+  const applyTone  = (s) => { setInput(s); setTone(''); setSuggestion(''); textareaRef.current?.focus(); setTimeout(resize, 0); };
+  const applyReply = (r) => { setInput(r); setReplies([]); repliesFetched.current = false; textareaRef.current?.focus(); setTimeout(resize, 0); };
+  const clearAll   = ()  => { setInput(''); setTone(''); setSuggestion(''); setSendError(''); clearTimeout(toneTimerRef.current); if (textareaRef.current) textareaRef.current.style.height = 'auto'; };
 
   if (!activeRoom) return null;
 
   return (
-    <div className="px-5 py-4 border-t border-nt-border bg-nt-surface flex-shrink-0 space-y-2.5">
+    <div className="flex-shrink-0 border-t px-5 py-4 space-y-3"
+         style={{ background: '#012B26', borderColor: '#025A50' }}>
 
       {/* Code preview */}
       {isCodeMode && showPreview && input.trim() && (
@@ -117,15 +108,18 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
       {/* Smart replies */}
       {(loadingReplies || replies.length > 0) && !isCodeMode && (
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <FiZap size={11} className="text-nt-cyan" />
-            <span className="text-xs text-nt-muted">Quick replies:</span>
+          <div className="flex items-center gap-1">
+            <Zap size={11} style={{ color: '#60D4C8' }} />
+            <span className="text-xs" style={{ color: '#7A9E99' }}>Quick:</span>
           </div>
           {loadingReplies
-            ? [80,110,95].map((w, i) => <div key={i} className="h-7 rounded-full bg-nt-surface2 border border-nt-border animate-pulse" style={{ width: w }} />)
-            : replies.map((r, i) => (
+            ? [80,110,95].map((w,i) => <div key={i} className="h-7 rounded-full animate-pulse" style={{ width: w, background: '#013E37', border: '1px solid #025A50' }} />)
+            : replies.map((r,i) => (
                 <button key={i} onClick={() => applyReply(r)}
-                  className="text-xs px-3 py-1.5 rounded-full bg-nt-surface2 border border-nt-border text-nt-muted hover:text-nt-text hover:border-nt-blue/40 hover:bg-nt-blue/5 transition-all whitespace-nowrap">
+                  className="text-xs px-3 py-1.5 rounded-full transition-all"
+                  style={{ background: '#013E37', border: '1px solid #025A50', color: '#D4C98A' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#FFEFB2'; e.currentTarget.style.color = '#FFEFB2'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#025A50'; e.currentTarget.style.color = '#D4C98A'; }}>
                   {r}
                 </button>
               ))
@@ -140,73 +134,120 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
 
       {/* Code mode bar */}
       {isCodeMode && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-nt-surface2 border border-nt-cyan/30">
-          <FiCode size={13} className="text-nt-cyan flex-shrink-0" />
-          <span className="text-xs font-semibold text-nt-cyan">Code mode</span>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-nt border"
+             style={{ background: 'rgba(96,212,200,0.06)', borderColor: 'rgba(96,212,200,0.25)' }}>
+          <Code size={13} style={{ color: '#60D4C8' }} />
+          <span className="text-xs font-semibold" style={{ color: '#60D4C8' }}>Code mode</span>
           <select value={codeLanguage} onChange={(e) => setCodeLanguage(e.target.value)}
-            className="bg-transparent text-xs text-nt-muted border-none outline-none cursor-pointer">
-            {CODE_LANGUAGES.map((l) => <option key={l} value={l} className="bg-nt-surface2 text-nt-text">{l}</option>)}
+            className="bg-transparent text-xs border-none outline-none cursor-pointer ml-1"
+            style={{ color: '#7A9E99' }}>
+            {CODE_LANGUAGES.map((l) => <option key={l} value={l} style={{ background: '#012B26' }}>{l}</option>)}
           </select>
           {input.trim() && (
-            <button onClick={togglePreview} className="ml-auto text-xs text-nt-muted hover:text-nt-cyan transition-colors px-2 py-0.5 rounded-lg hover:bg-nt-cyan/10">
-              {showPreview ? 'Hide' : 'Preview'}
+            <button onClick={togglePreview} className="ml-auto flex items-center gap-1 text-xs transition-colors"
+                    style={{ color: '#7A9E99' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#60D4C8'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
+              <Eye size={11} />{showPreview ? 'Hide' : 'Preview'}
             </button>
           )}
-          <button onClick={disableCodeMode} className="text-nt-muted hover:text-nt-danger transition-colors ml-1">
-            <FiX size={12} />
+          <button onClick={disableCodeMode} style={{ color: '#7A9E99' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#F87171'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
+            <X size={12} />
           </button>
         </div>
       )}
 
-      {/* Send error */}
-      {sendError && (
-        <p className="text-xs text-nt-danger px-1">{sendError}</p>
-      )}
+      {/* Error */}
+      {sendError && <p className="text-xs px-1" style={{ color: '#F87171' }}>{sendError}</p>}
 
-      {/* Main input */}
-      <div className={`flex items-end gap-3 px-4 py-3 rounded-2xl border bg-nt-surface2 transition-all duration-200
-        ${isOverLimit        ? 'border-nt-danger/60 shadow-sm shadow-nt-danger/10' :
-          isCodeMode         ? 'border-nt-cyan/40  shadow-sm shadow-nt-cyan/10'   :
-          'border-nt-border focus-within:border-nt-blue/50 focus-within:shadow-sm focus-within:shadow-nt-blue/10'}`}>
+      {/* Main input area — like Image 1 bottom */}
+      <div className="rounded-nt border transition-all duration-200"
+           style={{
+             background: '#011F1B',
+             borderColor: isOverLimit ? '#F87171' : isCodeMode ? 'rgba(96,212,200,0.4)' : '#025A50'
+           }}>
 
-        <button type="button" onClick={toggleCodeMode} title={isCodeMode ? 'Text mode' : 'Code mode'}
-          className={`flex-shrink-0 p-1.5 rounded-lg transition-all mb-0.5
-            ${isCodeMode ? 'text-nt-cyan bg-nt-cyan/10 border border-nt-cyan/30' : 'text-nt-muted hover:text-nt-text hover:bg-nt-surface'}`}>
-          <FiCode size={15} />
-        </button>
+        {/* Textarea */}
+        <div className="px-4 pt-3">
+          <textarea
+            ref={textareaRef} rows={1} value={input}
+            onChange={handleChange} onKeyDown={handleKeyDown} onFocus={handleFocus}
+            placeholder={isCodeMode ? `Paste your ${codeLanguage} code…` : `Send to #${activeRoom.name}… (Shift+Enter for new line)`}
+            className="w-full bg-transparent text-sm resize-none outline-none leading-relaxed min-h-[24px] max-h-36"
+            style={{
+              color: isOverLimit ? '#F87171' : '#FFEFB2',
+              caretColor: '#FFEFB2',
+              fontFamily: isCodeMode ? 'JetBrains Mono, monospace' : 'inherit'
+            }}
+          />
+        </div>
 
-        <textarea ref={textareaRef} rows={1} value={input}
-          onChange={handleChange} onKeyDown={handleKeyDown} onFocus={handleFocus}
-          placeholder={isCodeMode ? `Paste ${codeLanguage} code…` : `Message #${activeRoom.name}…`}
-          className={`flex-1 bg-transparent placeholder-nt-muted text-sm resize-none outline-none leading-relaxed min-h-[24px] max-h-40
-            ${isOverLimit   ? 'text-nt-danger' : 'text-nt-text'}
-            ${isCodeMode    ? 'font-mono text-nt-cyan text-xs' : ''}`}
-        />
+        {/* Toolbar row — like Image 1 bottom toolbar */}
+        <div className="flex items-center justify-between px-3 py-2 mt-1">
+          {/* Left formatting tools */}
+          <div className="flex items-center gap-1">
+            <button onClick={toggleCodeMode} title="Code mode"
+              className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+              style={{
+                background: isCodeMode ? 'rgba(96,212,200,0.15)' : 'transparent',
+                color: isCodeMode ? '#60D4C8' : '#7A9E99'
+              }}
+              onMouseEnter={(e) => !isCodeMode && (e.currentTarget.style.color = '#D4C98A')}
+              onMouseLeave={(e) => !isCodeMode && (e.currentTarget.style.color = '#7A9E99')}>
+              <Code size={14} />
+            </button>
 
-        {input.length > 0 && (
-          <button type="button" onClick={clearAll} className="flex-shrink-0 p-1 text-nt-muted hover:text-nt-text transition-colors mb-0.5">
-            <FiX size={13} />
-          </button>
-        )}
+            {[
+              { icon: Bold,   title: 'Bold'   },
+              { icon: Italic, title: 'Italic' },
+              { icon: List,   title: 'List'   },
+            ].map(({ icon: Icon, title }) => (
+              <button key={title} title={title}
+                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+                style={{ color: '#7A9E99' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#D4C98A'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
+                <Icon size={14} />
+              </button>
+            ))}
+          </div>
 
-        <button onClick={handleSend} disabled={!input.trim() || isOverLimit || !isConnected} title="Send"
-          className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all mb-0.5
-            ${input.trim() && !isOverLimit && isConnected
-              ? 'bg-nt-blue hover:bg-blue-500 shadow-sm shadow-nt-blue/30 cursor-pointer'
-              : 'bg-nt-surface border border-nt-border opacity-40 cursor-not-allowed'}`}>
-          <FiSend size={14} className="text-white" />
-        </button>
+          {/* Right — char count + send */}
+          <div className="flex items-center gap-2">
+            {charCount > MAX_CHARS * 0.7 && (
+              <span className="text-xs tabular-nums"
+                    style={{ color: isOverLimit ? '#F87171' : charCount > MAX_CHARS * 0.9 ? '#FCD34D' : '#7A9E99' }}>
+                {charCount}/{MAX_CHARS}
+              </span>
+            )}
+            {input.length > 0 && (
+              <button onClick={clearAll} style={{ color: '#7A9E99' }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#F87171'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
+                <X size={13} />
+              </button>
+            )}
+            <button onClick={() => doSend(input)}
+              disabled={!input.trim() || isOverLimit || !isConnected}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-95"
+              style={{
+                background: input.trim() && !isOverLimit && isConnected ? '#FFEFB2' : 'rgba(255,239,178,0.1)',
+                color: input.trim() && !isOverLimit && isConnected ? '#013E37' : '#7A9E99',
+                cursor: input.trim() && !isOverLimit && isConnected ? 'pointer' : 'not-allowed'
+              }}>
+              <Send size={13} />
+              <span className="hidden sm:inline">Send</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Bottom hint row */}
-      <div className="flex items-center justify-between px-1">
-        <span className="text-xs text-nt-muted/40">
-          {isCodeMode ? 'Shift+Enter for new line · AI auto-explains your code' : 'Enter to send · Shift+Enter for new line'}
-        </span>
-        <span className={`text-xs transition-colors ${isOverLimit ? 'text-nt-danger font-semibold' : charCount > MAX_CHARS * 0.85 ? 'text-nt-warning' : 'text-nt-muted/40'}`}>
-          {charCount > MAX_CHARS * 0.7 ? `${charCount} / ${MAX_CHARS}` : ''}
-        </span>
-      </div>
+      {/* Hint */}
+      <p className="text-center text-xs" style={{ color: 'rgba(122,158,153,0.5)' }}>
+        {isCodeMode ? 'AI will auto-explain your code for everyone' : 'Enter to send · Shift+Enter for new line'}
+      </p>
     </div>
   );
 };

@@ -1,139 +1,105 @@
 import { useState, useRef } from 'react';
 import { startConversation } from '../services/api';
-import { FiX, FiSearch, FiMessageCircle, FiHash } from 'react-icons/fi';
+import { X, MessageCircle, Search, Hash } from 'lucide-react';
 
-/**
- * StartConversation — modal for starting a new private chat.
- * User enters the other person's NexTalk number (+100 XXXXXXX),
- * the API finds or creates the conversation, then calls onStart.
- *
- * Props:
- *   onStart — fn(conversation) called when conversation is ready
- *   onClose — fn()
- */
 const StartConversation = ({ onStart, onClose }) => {
-  const [suffix,    setSuffix]    = useState('');
-  const [preview,   setPreview]   = useState(null);  // { username, avatar, nexTalkNumber, isOnline }
-  const [error,     setError]     = useState('');
-  const [loading,   setLoading]   = useState(false);
-  const inputRef                  = useRef(null);
+  const [suffix,  setSuffix]  = useState('');
+  const [error,   setError]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const inputRef              = useRef(null);
 
-  const digits = suffix.replace(/\D/g, '').slice(0, 7);
+  const digits     = suffix.replace(/\D/g, '').slice(0, 7);
   const fullNumber = digits.length === 7 ? `+100${digits}` : '';
 
-  const handleInput = (e) => {
-    setError('');
-    setPreview(null);
-    setSuffix(e.target.value.replace(/\D/g, '').slice(0, 7));
-  };
-
-  // Look up user without creating conversation yet
   const handleSearch = async () => {
     if (digits.length < 7) { setError('Enter all 7 digits.'); return; }
     setLoading(true); setError('');
     try {
       const { data } = await startConversation(fullNumber);
-      // API returns the conversation — extract the other participant for preview
       onStart?.(data.conversation);
       onClose?.();
     } catch (err) {
-      setError(err.response?.data?.message || 'User not found. Check the number and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') handleSearch();
+      setError(err.response?.data?.message || 'User not found. Check the number.');
+    } finally { setLoading(false); }
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
-    >
-      <div className="w-full max-w-sm bg-nt-surface border border-nt-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style={{ background: 'rgba(0,0,0,0.7)' }}
+         onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}>
+      <div className="w-full max-w-sm rounded-nt-xl overflow-hidden shadow-nt-float border animate-slide-up"
+           style={{ background: '#012B26', borderColor: '#025A50' }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-nt-border bg-nt-surface2/50">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-nt-blue/15 border border-nt-blue/25 flex items-center justify-center">
-              <FiMessageCircle size={15} className="text-nt-blue" />
+        <div className="flex items-center justify-between px-5 py-4 border-b"
+             style={{ borderColor: '#025A50', background: '#013E37' }}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-nt flex items-center justify-center"
+                 style={{ background: 'rgba(255,239,178,0.1)', border: '1px solid rgba(255,239,178,0.2)' }}>
+              <MessageCircle size={15} style={{ color: '#FFEFB2' }} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-nt-text">New Message</h3>
-              <p className="text-xs text-nt-muted">Enter a NexTalk number</p>
+              <h3 className="text-sm font-bold" style={{ color: '#FFEFB2' }}>New Message</h3>
+              <p className="text-xs" style={{ color: '#7A9E99' }}>Enter a NexTalk number</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-nt-muted hover:text-nt-text hover:bg-nt-surface rounded-lg transition-all">
-            <FiX size={16} />
+          <button onClick={onClose} style={{ color: '#7A9E99' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#FFEFB2'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
+            <X size={16} />
           </button>
         </div>
 
         {/* Body */}
         <div className="px-5 py-5 space-y-4">
-          <div>
-            <p className="text-xs text-nt-muted mb-3 leading-relaxed">
-              Enter the 7-digit part of a NexTalk number to start a private conversation. Ask your contact to share their number with you.
-            </p>
+          <p className="text-xs leading-relaxed" style={{ color: '#7A9E99' }}>
+            Enter the 7-digit NexTalk number to start a private conversation.
+          </p>
 
-            {/* Number input */}
-            <div className="flex items-center rounded-xl border border-nt-border bg-nt-surface2 overflow-hidden focus-within:border-nt-blue/50 transition-all">
-              {/* Fixed prefix */}
-              <div className="flex items-center gap-1.5 px-3 py-3 bg-nt-surface border-r border-nt-border flex-shrink-0">
-                <FiHash size={12} className="text-nt-blue" />
-                <span className="text-sm font-bold text-nt-blue tracking-wider">+100</span>
-              </div>
-
-              {/* 7-digit input */}
-              <input
-                ref={inputRef}
-                type="text"
-                inputMode="numeric"
-                value={digits}
-                onChange={handleInput}
-                onKeyDown={handleKeyDown}
-                placeholder="1234567"
-                maxLength={7}
-                autoFocus
-                className="flex-1 bg-transparent text-nt-text placeholder-nt-muted text-sm px-3 py-3 outline-none font-mono tracking-widest"
-              />
-
-              {/* Digit counter */}
-              <span className={`text-xs px-3 tabular-nums ${digits.length === 7 ? 'text-nt-success' : 'text-nt-muted'}`}>
-                {digits.length}/7
-              </span>
+          {/* Number input */}
+          <div className="flex items-center rounded-nt border overflow-hidden transition-all"
+               style={{ background: '#011F1B', borderColor: '#025A50' }}>
+            <div className="flex items-center gap-1.5 px-3 py-3 border-r flex-shrink-0"
+                 style={{ background: 'rgba(255,239,178,0.06)', borderColor: '#025A50' }}>
+              <Hash size={12} style={{ color: '#60D4C8' }} />
+              <span className="text-sm font-bold tracking-widest" style={{ color: '#FFEFB2' }}>+100</span>
             </div>
-
-            {/* Full number preview */}
-            {digits.length === 7 && (
-              <p className="text-xs text-nt-muted mt-1.5 px-1 font-mono">
-                Looking for: <strong className="text-nt-text">+100 {digits}</strong>
-              </p>
-            )}
-
-            {/* Error */}
-            {error && (
-              <div className="mt-2 px-3 py-2 rounded-lg bg-nt-danger/10 border border-nt-danger/30 text-nt-danger text-xs">
-                {error}
-              </div>
-            )}
+            <input type="text" inputMode="numeric" value={digits}
+              onChange={(e) => { setError(''); setSuffix(e.target.value.replace(/\D/g,'').slice(0,7)); }}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="1234567" maxLength={7} autoFocus ref={inputRef}
+              className="flex-1 bg-transparent text-sm px-3 py-3 outline-none font-mono tracking-widest"
+              style={{ color: '#FFEFB2', caretColor: '#FFEFB2' }}
+            />
+            <span className="text-xs px-3 tabular-nums flex-shrink-0"
+                  style={{ color: digits.length === 7 ? '#4ADE80' : '#7A9E99' }}>
+              {digits.length}/7
+            </span>
           </div>
+
+          {digits.length === 7 && (
+            <p className="text-xs font-mono" style={{ color: '#7A9E99' }}>
+              Looking for: <strong style={{ color: '#FFEFB2' }}>+100 {digits}</strong>
+            </p>
+          )}
+
+          {error && (
+            <div className="px-3 py-2.5 rounded-nt text-xs border"
+                 style={{ background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.3)', color: '#F87171' }}>
+              {error}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="px-5 pb-5 flex gap-3">
-          <button onClick={onClose} className="btn-ghost flex-1 border border-nt-border text-sm">
-            Cancel
-          </button>
-          <button
-            onClick={handleSearch}
+          <button onClick={onClose} className="btn-ghost flex-1 text-sm">Cancel</button>
+          <button onClick={handleSearch}
             disabled={digits.length < 7 || loading}
-            className="btn-primary flex-1 flex items-center justify-center gap-2 text-sm"
-          >
+            className="btn-primary flex-1 flex items-center justify-center gap-2 text-sm">
             {loading
-              ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Finding…</>
-              : <><FiSearch size={14} /> Start Chat</>
+              ? <><div className="w-4 h-4 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />Finding…</>
+              : <><Search size={14} />Start Chat</>
             }
           </button>
         </div>

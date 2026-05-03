@@ -12,80 +12,127 @@
   }
 
   body {
-    background-color: #050709;
-    color: #E6EDF3;
+    background-color: #011F1B;
+    color: #FFEFB2;
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Custom scrollbar */
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #30363D; border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: #0A84FF; }
+  ::-webkit-scrollbar-thumb { background: #025A50; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #FFEFB2; }
 
-  /* Smooth focus outlines */
-  :focus-visible { outline: 2px solid #0A84FF; outline-offset: 2px; border-radius: 4px; }
+  :focus-visible { outline: 2px solid #FFEFB2; outline-offset: 2px; border-radius: 6px; }
   :focus:not(:focus-visible) { outline: none; }
 }
 
 @layer components {
-  /* Buttons */
+  /* Primary button — cream on teal */
   .btn-primary {
-    @apply bg-nt-blue hover:bg-blue-500 active:bg-blue-600
-           text-white font-semibold px-4 py-2 rounded-xl
+    @apply bg-primary text-secondary font-semibold px-5 py-2.5 rounded-nt
+           hover:bg-primary-dark active:scale-95
            transition-all duration-150 cursor-pointer
-           disabled:opacity-40 disabled:cursor-not-allowed;
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100;
   }
+
+  /* Ghost button */
   .btn-ghost {
-    @apply bg-transparent hover:bg-nt-surface2 active:bg-nt-border
-           text-nt-muted hover:text-nt-text px-4 py-2 rounded-xl
+    @apply bg-transparent border border-nt-border text-nt-text2 font-medium px-5 py-2.5 rounded-nt
+           hover:bg-nt-surface3 hover:text-nt-text hover:border-nt-border2
            transition-all duration-150 cursor-pointer;
   }
 
-  /* Input */
-  .nt-input {
-    @apply w-full bg-nt-surface2 border border-nt-border
-           text-nt-text placeholder-nt-muted rounded-xl px-4 py-2.5
-           focus:outline-none focus:border-nt-blue/60 focus:ring-1 focus:ring-nt-blue/20
-           transition-all duration-150;
+  /* Danger ghost */
+  .btn-danger {
+    @apply bg-transparent border border-nt-danger/40 text-nt-danger font-medium px-5 py-2.5 rounded-nt
+           hover:bg-nt-danger/10 transition-all duration-150 cursor-pointer;
   }
 
-  /* Card */
-  .nt-card {
-    @apply bg-nt-surface border border-nt-border rounded-2xl;
+  /* Input field */
+  .nt-input {
+    @apply w-full bg-nt-bg border border-nt-border text-nt-text
+           placeholder-nt-muted rounded-nt px-4 py-3
+           focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20
+           transition-all duration-150 text-sm;
   }
+
+  /* Card surface */
+  .nt-card {
+    @apply bg-nt-surface border border-nt-border rounded-nt-lg;
+  }
+
+  /* Sidebar item */
+  .sidebar-item {
+    @apply w-full flex items-center gap-3 px-3 py-2.5 rounded-nt text-left
+           text-nt-text2 hover:bg-nt-surface3 hover:text-nt-text
+           transition-all duration-150 cursor-pointer;
+  }
+
+  .sidebar-item.active {
+    @apply bg-primary/10 text-primary border border-primary/20;
+  }
+
+  /* Tab button */
+  .tab-btn {
+    @apply flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold
+           border-b-2 border-transparent text-nt-muted
+           hover:text-nt-text2 hover:bg-nt-surface3
+           transition-all duration-150;
+  }
+  .tab-btn.active {
+    @apply text-primary border-primary bg-primary/5;
+  }
+
+  /* Message bubble — own */
+  .bubble-own {
+    @apply bg-secondary text-primary rounded-2xl rounded-tr-sm px-4 py-2.5;
+  }
+
+  /* Message bubble — other */
+  .bubble-other {
+    @apply bg-nt-surface2 text-nt-text border border-nt-border rounded-2xl rounded-tl-sm px-4 py-2.5;
+  }
+
+  /* Section label */
+  .section-label {
+    @apply text-xs font-bold text-nt-muted uppercase tracking-widest;
+  }
+
+  /* Status badge */
+  .status-online  { @apply w-2.5 h-2.5 rounded-full bg-nt-success border-2 border-nt-surface; }
+  .status-offline { @apply w-2.5 h-2.5 rounded-full bg-nt-muted   border-2 border-nt-surface; }
 }
 
 @layer utilities {
-  /* Toast slide-in animation */
   @keyframes toast-in {
     from { opacity: 0; transform: translateY(12px) scale(0.95); }
-    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
   }
-  .animate-toast-in {
-    animation: toast-in 0.2s ease-out forwards;
-  }
+  .animate-toast-in { animation: toast-in 0.2s ease-out forwards; }
 
-  /* Fade in */
   @keyframes fade-in {
     from { opacity: 0; }
     to   { opacity: 1; }
   }
   .animate-fade-in { animation: fade-in 0.25s ease-out forwards; }
 
-  /* Slide up */
   @keyframes slide-up {
-    from { opacity: 0; transform: translateY(16px); }
+    from { opacity: 0; transform: translateY(20px); }
     to   { opacity: 1; transform: translateY(0); }
   }
   .animate-slide-up { animation: slide-up 0.3s ease-out forwards; }
 
-  /* Gentle pulse for connection dot */
+  @keyframes slide-right {
+    from { opacity: 0; transform: translateX(-20px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .animate-slide-right { animation: slide-right 0.3s ease-out forwards; }
+
   @keyframes pulse-dot {
     0%, 100% { opacity: 1; }
-    50%       { opacity: 0.4; }
+    50%       { opacity: 0.3; }
   }
   .animate-pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
 }
