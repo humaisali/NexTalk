@@ -4,7 +4,7 @@ import ToneAnalyzer     from './ToneAnalyzer';
 import CodePreview      from './CodePreview';
 import useTyping        from '../hooks/useTyping';
 import useCodeShare     from '../hooks/useCodeShare';
-import { Send, Code, X, Zap, Eye, Bold, Italic, List } from 'lucide-react';
+import { Send, Code, X, Zap, Eye, Bold, Italic, List, Smile } from 'lucide-react';
 
 const MAX_CHARS = 4000;
 
@@ -23,6 +23,7 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
   const [replies,        setReplies]        = useState([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [sendError,      setSendError]      = useState('');
+  const [isFocused,      setIsFocused]      = useState(false);
 
   const textareaRef    = useRef(null);
   const toneTimerRef   = useRef(null);
@@ -61,6 +62,7 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
   };
 
   const handleFocus = useCallback(async () => {
+    setIsFocused(true);
     if (!onSmartReplies || repliesFetched.current || replies.length > 0) return;
     const textMsgs = recentMessages.filter((m) => m.type !== 'system');
     if (!textMsgs.length) return;
@@ -91,13 +93,18 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
 
   const applyTone  = (s) => { setInput(s); setTone(''); setSuggestion(''); textareaRef.current?.focus(); setTimeout(resize, 0); };
   const applyReply = (r) => { setInput(r); setReplies([]); repliesFetched.current = false; textareaRef.current?.focus(); setTimeout(resize, 0); };
-  const clearAll   = ()  => { setInput(''); setTone(''); setSuggestion(''); setSendError(''); clearTimeout(toneTimerRef.current); if (textareaRef.current) textareaRef.current.style.height = 'auto'; };
+  const clearAll   = ()  => {
+    setInput(''); setTone(''); setSuggestion(''); setSendError('');
+    clearTimeout(toneTimerRef.current);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  };
 
   if (!activeRoom) return null;
 
+  const canSend = input.trim() && !isOverLimit && isConnected;
+
   return (
-    <div className="flex-shrink-0 border-t px-5 py-4 space-y-3"
-         style={{ background: '#012B26', borderColor: '#025A50' }}>
+    <div className="input-area flex-shrink-0 px-5 py-4 space-y-3">
 
       {/* Code preview */}
       {isCodeMode && showPreview && input.trim() && (
@@ -107,18 +114,35 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
       {/* Smart replies */}
       {(loadingReplies || replies.length > 0) && !isCodeMode && (
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <Zap size={11} style={{ color: '#60D4C8' }} />
-            <span className="text-xs" style={{ color: '#7A9E99' }}>Quick:</span>
+            <span className="text-xs font-medium" style={{ color: 'rgba(122,158,153,0.7)' }}>Quick replies:</span>
           </div>
           {loadingReplies
-            ? [80,110,95].map((w,i) => <div key={i} className="h-7 rounded-full animate-pulse" style={{ width: w, background: '#013E37', border: '1px solid #025A50' }} />)
+            ? [80,110,95].map((w,i) => (
+                <div key={i} className="h-7 rounded-full skeleton" style={{ width: w }} />
+              ))
             : replies.map((r,i) => (
-                <button key={i} onClick={() => applyReply(r)}
-                  className="text-xs px-3 py-1.5 rounded-full transition-all"
-                  style={{ background: '#013E37', border: '1px solid #025A50', color: '#D4C98A' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#FFEFB2'; e.currentTarget.style.color = '#FFEFB2'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#025A50'; e.currentTarget.style.color = '#D4C98A'; }}>
+                <button
+                  key={i}
+                  onClick={() => applyReply(r)}
+                  className="text-xs px-3 py-1.5 rounded-full transition-all duration-200"
+                  style={{
+                    background: 'rgba(255,239,178,0.06)',
+                    border: '1px solid rgba(255,239,178,0.1)',
+                    color: '#D4C98A',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255,239,178,0.12)';
+                    e.currentTarget.style.borderColor = 'rgba(255,239,178,0.22)';
+                    e.currentTarget.style.color = '#FFEFB2';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255,239,178,0.06)';
+                    e.currentTarget.style.borderColor = 'rgba(255,239,178,0.1)';
+                    e.currentTarget.style.color = '#D4C98A';
+                  }}
+                >
                   {r}
                 </button>
               ))
@@ -133,106 +157,153 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
 
       {/* Code mode bar */}
       {isCodeMode && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-nt border"
-             style={{ background: 'rgba(96,212,200,0.06)', borderColor: 'rgba(96,212,200,0.25)' }}>
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-xl"
+          style={{
+            background: 'rgba(96,212,200,0.05)',
+            border: '1px solid rgba(96,212,200,0.2)',
+          }}
+        >
           <Code size={13} style={{ color: '#60D4C8' }} />
           <span className="text-xs font-semibold" style={{ color: '#60D4C8' }}>Code mode</span>
-          <select value={codeLanguage} onChange={(e) => setCodeLanguage(e.target.value)}
+          <select
+            value={codeLanguage}
+            onChange={(e) => setCodeLanguage(e.target.value)}
             className="bg-transparent text-xs border-none outline-none cursor-pointer ml-1"
-            style={{ color: '#7A9E99' }}>
-            {CODE_LANGUAGES.map((l) => <option key={l} value={l} style={{ background: '#012B26' }}>{l}</option>)}
+            style={{ color: '#7A9E99' }}
+          >
+            {CODE_LANGUAGES.map((l) => <option key={l} value={l} style={{ background: '#0D1A18' }}>{l}</option>)}
           </select>
           {input.trim() && (
-            <button onClick={togglePreview} className="ml-auto flex items-center gap-1 text-xs transition-colors"
-                    style={{ color: '#7A9E99' }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = '#60D4C8'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
+            <button
+              onClick={togglePreview}
+              className="ml-auto flex items-center gap-1 text-xs transition-colors"
+              style={{ color: '#7A9E99' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#60D4C8'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}
+            >
               <Eye size={11} />{showPreview ? 'Hide' : 'Preview'}
             </button>
           )}
-          <button onClick={disableCodeMode} style={{ color: '#7A9E99' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#F87171'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
+          <button
+            onClick={disableCodeMode}
+            style={{ color: '#7A9E99' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#F87171'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}
+          >
             <X size={12} />
           </button>
         </div>
       )}
 
       {/* Error */}
-      {sendError && <p className="text-xs px-1" style={{ color: '#F87171' }}>{sendError}</p>}
+      {sendError && (
+        <p className="text-xs px-1 flex items-center gap-1.5" style={{ color: '#F87171' }}>
+          <span className="w-1 h-1 rounded-full bg-nt-danger inline-block" />
+          {sendError}
+        </p>
+      )}
 
-      {/* Main input */}
-      <div className="rounded-nt border transition-all duration-200"
-           style={{
-             background: '#011F1B',
-             borderColor: isOverLimit ? '#F87171' : isCodeMode ? 'rgba(96,212,200,0.4)' : '#025A50'
-           }}>
-        <div className="px-4 pt-3">
+      {/* Main input box */}
+      <div className="message-input-box" style={{
+        borderColor: isOverLimit
+          ? 'rgba(248,113,113,0.4)'
+          : isCodeMode
+          ? 'rgba(96,212,200,0.3)'
+          : isFocused
+          ? 'rgba(255,239,178,0.2)'
+          : 'rgba(255,239,178,0.1)',
+      }}>
+        <div className="px-4 pt-3.5">
           <textarea
-            ref={textareaRef} rows={1} value={input}
-            onChange={handleChange} onKeyDown={handleKeyDown} onFocus={handleFocus}
-            placeholder={isCodeMode ? `Paste your ${codeLanguage} code…` : `Message ${activeRoom.name}…`}
+            ref={textareaRef}
+            rows={1}
+            value={input}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onFocus={handleFocus}
+            onBlur={() => setIsFocused(false)}
+            placeholder={isCodeMode ? `Paste your ${codeLanguage} code here…` : `Message ${activeRoom.name}…`}
             className="w-full bg-transparent text-sm resize-none outline-none leading-relaxed min-h-[24px] max-h-36"
             style={{
               color: isOverLimit ? '#F87171' : '#FFEFB2',
               caretColor: '#FFEFB2',
-              fontFamily: isCodeMode ? 'JetBrains Mono, monospace' : 'inherit'
+              fontFamily: isCodeMode ? 'JetBrains Mono, monospace' : 'inherit',
             }}
           />
         </div>
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-3 py-2 mt-1">
-          <div className="flex items-center gap-1">
-            <button onClick={toggleCodeMode} title="Code mode"
-              className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-              style={{ background: isCodeMode ? 'rgba(96,212,200,0.15)' : 'transparent', color: isCodeMode ? '#60D4C8' : '#7A9E99' }}
-              onMouseEnter={(e) => !isCodeMode && (e.currentTarget.style.color = '#D4C98A')}
-              onMouseLeave={(e) => !isCodeMode && (e.currentTarget.style.color = '#7A9E99')}>
-              <Code size={14} />
-            </button>
-            {[{ icon: Bold, title: 'Bold' }, { icon: Italic, title: 'Italic' }, { icon: List, title: 'List' }].map(({ icon: Icon, title }) => (
-              <button key={title} title={title}
-                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-                style={{ color: '#7A9E99' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#D4C98A'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
-                <Icon size={14} />
+        <div className="flex items-center justify-between px-3 pb-3 pt-2">
+          <div className="flex items-center gap-0.5">
+            {[
+              { icon: Code, action: toggleCodeMode, active: isCodeMode, title: 'Code' },
+              { icon: Bold, action: null, active: false, title: 'Bold' },
+              { icon: Italic, action: null, active: false, title: 'Italic' },
+              { icon: List, action: null, active: false, title: 'List' },
+            ].map(({ icon: Icon, action, active, title }) => (
+              <button
+                key={title}
+                onClick={action || undefined}
+                title={title}
+                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150"
+                style={{
+                  background: active ? 'rgba(96,212,200,0.12)' : 'transparent',
+                  color: active ? '#60D4C8' : '#7A9E99',
+                }}
+                onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(255,239,178,0.06)'; e.currentTarget.style.color = '#D4C98A'; } }}
+                onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#7A9E99'; } }}
+              >
+                <Icon size={13} />
               </button>
             ))}
           </div>
 
           <div className="flex items-center gap-2">
             {charCount > MAX_CHARS * 0.7 && (
-              <span className="text-xs tabular-nums"
-                    style={{ color: isOverLimit ? '#F87171' : charCount > MAX_CHARS * 0.9 ? '#FCD34D' : '#7A9E99' }}>
+              <span
+                className="text-xs tabular-nums font-mono"
+                style={{ color: isOverLimit ? '#F87171' : charCount > MAX_CHARS * 0.9 ? '#FCD34D' : 'rgba(122,158,153,0.5)' }}
+              >
                 {charCount}/{MAX_CHARS}
               </span>
             )}
             {input.length > 0 && (
-              <button onClick={clearAll} style={{ color: '#7A9E99' }}
-                      onMouseEnter={(e) => e.currentTarget.style.color = '#F87171'}
-                      onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}>
-                <X size={13} />
+              <button
+                onClick={clearAll}
+                className="w-6 h-6 rounded-lg flex items-center justify-center transition-all"
+                style={{ color: '#7A9E99' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.08)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = '#7A9E99'; e.currentTarget.style.background = 'transparent'; }}
+              >
+                <X size={12} />
               </button>
             )}
-            <button onClick={() => doSend(input)}
-              disabled={!input.trim() || isOverLimit || !isConnected}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-95"
+            <button
+              onClick={() => doSend(input)}
+              disabled={!canSend}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
               style={{
-                background: input.trim() && !isOverLimit && isConnected ? '#FFEFB2' : 'rgba(255,239,178,0.1)',
-                color:      input.trim() && !isOverLimit && isConnected ? '#013E37' : '#7A9E99',
-                cursor:     input.trim() && !isOverLimit && isConnected ? 'pointer' : 'not-allowed'
-              }}>
-              <Send size={13} />
+                background: canSend
+                  ? 'linear-gradient(135deg, #FFEFB2, #F5DC6E)'
+                  : 'rgba(255,239,178,0.08)',
+                color: canSend ? '#013E37' : '#7A9E99',
+                cursor: canSend ? 'pointer' : 'not-allowed',
+                boxShadow: canSend ? '0 2px 10px rgba(255,239,178,0.2)' : 'none',
+                transform: canSend ? 'translateY(0)' : 'none',
+              }}
+              onMouseEnter={(e) => canSend && (e.currentTarget.style.transform = 'translateY(-1px)')}
+              onMouseLeave={(e) => canSend && (e.currentTarget.style.transform = 'translateY(0)')}
+            >
+              <Send size={12} />
               <span className="hidden sm:inline">Send</span>
             </button>
           </div>
         </div>
       </div>
 
-      <p className="text-center text-xs" style={{ color: 'rgba(122,158,153,0.5)' }}>
-        {isCodeMode ? 'AI will auto-explain your code for everyone' : 'Enter to send · Shift+Enter for new line'}
+      <p className="text-center text-xs" style={{ color: 'rgba(122,158,153,0.35)' }}>
+        {isCodeMode ? '✦ AI will auto-explain your code for everyone in the room' : 'Enter to send · Shift+Enter for new line'}
       </p>
     </div>
   );
