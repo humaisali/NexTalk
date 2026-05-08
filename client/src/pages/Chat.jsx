@@ -17,6 +17,7 @@ import StartConversation        from '../components/StartConversation';
 import EditProfileModal         from '../components/EditProfileModal';
 import RoomSettings             from '../components/RoomSettings';
 import RoomInfoPanel            from '../components/RoomInfoPanel';
+import { MessageSquare, Hash, Zap, Globe, Shield, Sparkles } from 'lucide-react';
 
 const Chat = () => {
   const { user }                                               = useAuth();
@@ -49,7 +50,6 @@ const Chat = () => {
   const [showInfoPanel,    setShowInfoPanel]    = useState(true);
   const reconnectShown = useRef(false);
 
-  // ── Reconnect toast ────────────────────────────────────────────
   useEffect(() => {
     if (isReconnecting && !reconnectShown.current) {
       reconnectShown.current = true;
@@ -61,7 +61,6 @@ const Chat = () => {
     }
   }, [isReconnecting]);
 
-  // ── Patch code explanations into messages ──────────────────────
   useEffect(() => {
     if (!Object.keys(explanations).length) return;
     setMessages((prev) =>
@@ -69,7 +68,6 @@ const Chat = () => {
     );
   }, [explanations]);
 
-  // ── Handlers ──────────────────────────────────────────────────
   const goToRoom = (room) => { closeConversation(); handleSelectRoom(room); };
 
   const handleCreateAndJoin = async (name, desc) => {
@@ -83,13 +81,11 @@ const Chat = () => {
     }
   };
 
-  // Join group via invite link/code entered in sidebar
   const handleJoinGroup = async (input) => {
     try {
       closeConversation();
       await handleJoinByCode(input);
     } catch (err) {
-      // Rethrow so Sidebar can show the error message inline
       throw err;
     }
   };
@@ -114,7 +110,7 @@ const Chat = () => {
   const showEmpty      = !showDM && !showRoom;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#011F1B' }}>
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#080E0D' }}>
 
       {/* Top Navbar */}
       <Navbar
@@ -143,8 +139,7 @@ const Chat = () => {
         />
 
         {/* Column 2 — Main chat */}
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0"
-             style={{ background: '#011F1B' }}>
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 chat-bg">
 
           {/* Private DM */}
           {showDM && (
@@ -173,43 +168,89 @@ const Chat = () => {
             </>
           )}
 
-          {/* Empty / welcome state */}
+          {/* Premium empty / welcome state */}
           {showEmpty && (
-            <div className="flex-1 flex items-center justify-center animate-fade-in">
-              <div className="text-center space-y-5 px-6 max-w-sm">
-                <div className="w-20 h-20 rounded-2xl border-2 flex items-center justify-center mx-auto"
-                     style={{ background: 'linear-gradient(135deg, #FFEFB2, #F5DC6E)', borderColor: 'rgba(255,239,178,0.3)' }}>
-                  <span className="text-4xl font-black" style={{ color: '#013E37' }}>N</span>
+            <div className="flex-1 flex items-center justify-center animate-fade-in relative overflow-hidden">
+              {/* Ambient glow */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: `
+                    radial-gradient(ellipse 60% 50% at 50% 40%, rgba(2,90,80,0.08) 0%, transparent 70%),
+                    radial-gradient(ellipse 40% 40% at 30% 70%, rgba(255,239,178,0.03) 0%, transparent 60%)
+                  `,
+                }}
+              />
+
+              <div className="text-center space-y-7 px-6 max-w-md relative z-10">
+                {/* Logo mark */}
+                <div className="flex justify-center">
+                  <div
+                    className="w-24 h-24 rounded-3xl flex items-center justify-center animate-float"
+                    style={{
+                      background: 'linear-gradient(135deg, #FFEFB2 0%, #F5DC6E 50%, #E8C94A 100%)',
+                      boxShadow: '0 0 60px rgba(255,239,178,0.2), 0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3)',
+                    }}
+                  >
+                    <MessageSquare size={40} strokeWidth={2.5} style={{ color: '#013E37' }} />
+                  </div>
                 </div>
+
                 <div>
-                  <h2 className="text-xl font-bold" style={{ color: '#FFEFB2' }}>Welcome to NexTalk</h2>
-                  <p className="text-sm mt-2 leading-relaxed" style={{ color: '#7A9E99' }}>
+                  <h2 className="text-2xl font-black text-gradient tracking-tight mb-3">
+                    Welcome to NexTalk
+                  </h2>
+                  <p className="text-sm leading-relaxed" style={{ color: 'rgba(122,158,153,0.6)' }}>
                     Select a <strong style={{ color: '#D4C98A' }}>Group</strong> from the sidebar to start chatting,
                     or open a <strong style={{ color: '#D4C98A' }}>Direct Message</strong> using a NexTalk number.
                   </p>
                 </div>
 
-                {/* NexTalk number */}
+                {/* NexTalk number card */}
                 {user?.nexTalkNumber && (
-                  <div className="rounded-nt border p-3 text-center"
-                       style={{ background: 'rgba(255,239,178,0.06)', borderColor: '#025A50' }}>
-                    <p className="text-xs mb-1" style={{ color: '#7A9E99' }}>Your NexTalk number</p>
-                    <p className="font-mono font-bold text-lg tracking-widest" style={{ color: '#FFEFB2' }}>
+                  <div
+                    className="rounded-2xl p-4 text-center"
+                    style={{
+                      background: 'rgba(255,239,178,0.04)',
+                      border: '1px solid rgba(255,239,178,0.1)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,239,178,0.05)',
+                    }}
+                  >
+                    <p className="text-xs mb-2 flex items-center justify-center gap-1.5" style={{ color: 'rgba(122,158,153,0.6)' }}>
+                      <Hash size={11} style={{ color: '#60D4C8' }} />
+                      Your NexTalk number
+                    </p>
+                    <p className="font-mono font-black text-xl tracking-widest" style={{ color: '#FFEFB2', letterSpacing: '0.15em' }}>
                       {user.nexTalkNumber.replace(/^(\+100)(\d{7})$/, '+100 $2')}
                     </p>
-                    <p className="text-xs mt-1" style={{ color: 'rgba(122,158,153,0.5)' }}>
-                      Share this with friends so they can message you directly
+                    <p className="text-xs mt-2" style={{ color: 'rgba(122,158,153,0.4)' }}>
+                      Share this with friends to receive direct messages
                     </p>
                   </div>
                 )}
 
-                {/* Feature chips */}
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {['Tone Analyzer','Smart Replies','Mood Rooms','Catch Me Up','Code + AI Explain','Private DMs','Group Chat'].map((f) => (
-                    <span key={f} className="text-xs px-3 py-1.5 rounded-full border"
-                          style={{ background: 'rgba(255,239,178,0.05)', borderColor: '#025A50', color: '#7A9E99' }}>
-                      {f}
-                    </span>
+                {/* Feature grid */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { icon: Zap,         label: 'Tone Analyzer',    desc: 'Real-time tone detection' },
+                    { icon: Sparkles,    label: 'Smart Replies',    desc: 'AI-suggested responses' },
+                    { icon: Globe,       label: 'Auto-Translate',   desc: '14 languages supported' },
+                    { icon: Shield,      label: 'Private DMs',      desc: 'End-to-end encrypted' },
+                  ].map(({ icon: Icon, label, desc }) => (
+                    <div
+                      key={label}
+                      className="p-3 rounded-xl text-left"
+                      style={{
+                        background: 'rgba(255,239,178,0.03)',
+                        border: '1px solid rgba(255,239,178,0.07)',
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Icon size={13} style={{ color: '#60D4C8' }} />
+                        <span className="text-xs font-semibold" style={{ color: '#D4C98A' }}>{label}</span>
+                      </div>
+                      <p className="text-xs" style={{ color: 'rgba(122,158,153,0.5)' }}>{desc}</p>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -228,7 +269,7 @@ const Chat = () => {
         )}
       </div>
 
-      {/* ── Modals ─────────────────────────────────────────────── */}
+      {/* Modals */}
       <SummaryModal
         isOpen={summaryOpen}
         onClose={() => setSummaryOpen(false)}
