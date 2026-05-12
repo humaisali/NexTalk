@@ -7,34 +7,27 @@ const ConnectionBanner = () => {
 
   return (
     <div
-      className="flex items-center justify-center gap-2.5 py-2 text-xs font-semibold flex-shrink-0 animate-fade-in"
-      style={isReconnecting ? {
-        background: 'linear-gradient(90deg, rgba(252,211,77,0.08), rgba(252,211,77,0.12), rgba(252,211,77,0.08))',
-        color: '#FCD34D',
-        borderBottom: '1px solid rgba(252,211,77,0.15)',
-      } : {
-        background: 'linear-gradient(90deg, rgba(248,113,113,0.08), rgba(248,113,113,0.12), rgba(248,113,113,0.08))',
-        color: '#F87171',
-        borderBottom: '1px solid rgba(248,113,113,0.15)',
-      }}
+      className={`flex items-center justify-center gap-2.5 py-2.5 text-sm font-semibold flex-shrink-0 animate-fade-in shadow-sm ${
+        isReconnecting ? 'bg-yellow-50 text-yellow-600 border-b border-yellow-100' : 'bg-red-50 text-red-600 border-b border-red-100'
+      }`}
     >
       {isReconnecting ? (
         <>
-          <RefreshCw size={11} className="animate-spin" />
+          <RefreshCw size={14} className="animate-spin" />
           Reconnecting to NexTalk…
-          <div className="flex gap-1">
-            {[0,200,400].map((d) => (
+          <div className="flex gap-1 ml-1">
+            {[0, 200, 400].map((d) => (
               <div
                 key={d}
-                className="w-1 h-1 rounded-full animate-bounce"
-                style={{ background: '#FCD34D', animationDelay: `${d}ms` }}
+                className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-bounce"
+                style={{ animationDelay: `${d}ms` }}
               />
             ))}
           </div>
         </>
       ) : (
         <>
-          <WifiOff size={11} />
+          <WifiOff size={14} />
           You are offline — check your connection
         </>
       )}
