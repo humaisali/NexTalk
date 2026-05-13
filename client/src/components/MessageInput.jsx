@@ -4,7 +4,7 @@ import ToneAnalyzer     from './ToneAnalyzer';
 import CodePreview      from './CodePreview';
 import useTyping        from '../hooks/useTyping';
 import useCodeShare     from '../hooks/useCodeShare';
-import { Send, Code, X, Zap, Eye, Bold, Italic, List, Smile } from 'lucide-react';
+import { Send, Code, X, Zap, Eye } from 'lucide-react';
 
 const MAX_CHARS = 4000;
 
@@ -70,7 +70,7 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
     setLoadingReplies(true);
     try {
       const res = await onSmartReplies(textMsgs.slice(-5));
-      setReplies(Array.isArray(res) ? res : []);
+      setReplies(Array.isArray(res) ? res.filter(r => r && (typeof r === 'string' ? r.trim() : true)) : []);
     } catch { setReplies([]); } finally { setLoadingReplies(false); }
   }, [onSmartReplies, recentMessages, replies]);
 
@@ -104,7 +104,7 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
   const canSend = input.trim() && !isOverLimit && isConnected;
 
   return (
-    <div className="input-area flex-shrink-0 px-5 py-4 space-y-3">
+    <div className="flex-shrink-0 px-6 py-4 bg-white border-t border-gray-100 relative z-10">
 
       {/* Code preview */}
       {isCodeMode && showPreview && input.trim() && (
@@ -113,37 +113,22 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
 
       {/* Smart replies */}
       {(loadingReplies || replies.length > 0) && !isCodeMode && (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap mb-3">
           <div className="flex items-center gap-1.5">
-            <Zap size={11} style={{ color: '#60D4C8' }} />
-            <span className="text-xs font-medium" style={{ color: 'rgba(122,158,153,0.7)' }}>Quick replies:</span>
+            <Zap size={14} className="text-yellow-500" />
+            <span className="text-xs font-medium text-gray-500">Quick replies:</span>
           </div>
           {loadingReplies
             ? [80,110,95].map((w,i) => (
-                <div key={i} className="h-7 rounded-full skeleton" style={{ width: w }} />
+                <div key={i} className="h-7 rounded-full bg-gray-100 animate-pulse" style={{ width: w }} />
               ))
             : replies.map((r,i) => (
                 <button
                   key={i}
                   onClick={() => applyReply(r)}
-                  className="text-xs px-3 py-1.5 rounded-full transition-all duration-200"
-                  style={{
-                    background: 'rgba(255,239,178,0.06)',
-                    border: '1px solid rgba(255,239,178,0.1)',
-                    color: '#D4C98A',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,239,178,0.12)';
-                    e.currentTarget.style.borderColor = 'rgba(255,239,178,0.22)';
-                    e.currentTarget.style.color = '#FFEFB2';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,239,178,0.06)';
-                    e.currentTarget.style.borderColor = 'rgba(255,239,178,0.1)';
-                    e.currentTarget.style.color = '#D4C98A';
-                  }}
+                  className="text-xs px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 transition-colors"
                 >
-                  {r}
+                  {typeof r === 'string' ? r : (r?.text || r?.reply || JSON.stringify(r))}
                 </button>
               ))
           }
@@ -157,64 +142,44 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
 
       {/* Code mode bar */}
       {isCodeMode && (
-        <div
-          className="flex items-center gap-2 px-3 py-2 rounded-xl"
-          style={{
-            background: 'rgba(96,212,200,0.05)',
-            border: '1px solid rgba(96,212,200,0.2)',
-          }}
-        >
-          <Code size={13} style={{ color: '#60D4C8' }} />
-          <span className="text-xs font-semibold" style={{ color: '#60D4C8' }}>Code mode</span>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 border border-blue-100 mb-3">
+          <Code size={14} className="text-blue-500" />
+          <span className="text-xs font-semibold text-blue-600">Code mode</span>
           <select
             value={codeLanguage}
             onChange={(e) => setCodeLanguage(e.target.value)}
-            className="bg-transparent text-xs border-none outline-none cursor-pointer ml-1"
-            style={{ color: '#7A9E99' }}
+            className="bg-transparent text-xs border-none outline-none cursor-pointer ml-1 text-gray-600 font-medium"
           >
-            {CODE_LANGUAGES.map((l) => <option key={l} value={l} style={{ background: '#0D1A18' }}>{l}</option>)}
+            {CODE_LANGUAGES.map((l) => <option key={l} value={l} className="bg-white">{l}</option>)}
           </select>
           {input.trim() && (
             <button
               onClick={togglePreview}
-              className="ml-auto flex items-center gap-1 text-xs transition-colors"
-              style={{ color: '#7A9E99' }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#60D4C8'}
-              onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}
+              className="ml-auto flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 transition-colors"
             >
-              <Eye size={11} />{showPreview ? 'Hide' : 'Preview'}
+              <Eye size={12} />{showPreview ? 'Hide' : 'Preview'}
             </button>
           )}
           <button
             onClick={disableCodeMode}
-            style={{ color: '#7A9E99' }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#F87171'}
-            onMouseLeave={(e) => e.currentTarget.style.color = '#7A9E99'}
+            className="text-gray-400 hover:text-red-500 ml-2"
           >
-            <X size={12} />
+            <X size={14} />
           </button>
         </div>
       )}
 
       {/* Error */}
       {sendError && (
-        <p className="text-xs px-1 flex items-center gap-1.5" style={{ color: '#F87171' }}>
-          <span className="w-1 h-1 rounded-full bg-nt-danger inline-block" />
+        <p className="text-xs px-1 mb-2 flex items-center gap-1.5 text-red-500">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
           {sendError}
         </p>
       )}
 
       {/* Main input box */}
-      <div className="message-input-box" style={{
-        borderColor: isOverLimit
-          ? 'rgba(248,113,113,0.4)'
-          : isCodeMode
-          ? 'rgba(96,212,200,0.3)'
-          : isFocused
-          ? 'rgba(255,239,178,0.2)'
-          : 'rgba(255,239,178,0.1)',
-      }}>
-        <div className="px-4 pt-3.5">
+      <div className={`rounded-xl border bg-gray-50 transition-all ${isFocused ? 'ring-2 ring-blue-100 border-blue-300' : 'border-gray-200'} ${isOverLimit ? 'border-red-300 ring-red-100' : ''}`}>
+        <div className="px-4 pt-3">
           <textarea
             ref={textareaRef}
             rows={1}
@@ -224,85 +189,53 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
             onFocus={handleFocus}
             onBlur={() => setIsFocused(false)}
             placeholder={isCodeMode ? `Paste your ${codeLanguage} code here…` : `Message ${activeRoom.name}…`}
-            className="w-full bg-transparent text-sm resize-none outline-none leading-relaxed min-h-[24px] max-h-36"
+            className="w-full bg-transparent text-sm resize-none outline-none leading-relaxed min-h-[24px] max-h-36 text-gray-800 placeholder-gray-400"
             style={{
-              color: isOverLimit ? '#F87171' : '#FFEFB2',
-              caretColor: '#FFEFB2',
+              color: isOverLimit ? '#ef4444' : '#1f2937',
               fontFamily: isCodeMode ? 'JetBrains Mono, monospace' : 'inherit',
             }}
           />
         </div>
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-3 pb-3 pt-2">
-          <div className="flex items-center gap-0.5">
-            {[
-              { icon: Code, action: toggleCodeMode, active: isCodeMode, title: 'Code' },
-              { icon: Bold, action: null, active: false, title: 'Bold' },
-              { icon: Italic, action: null, active: false, title: 'Italic' },
-              { icon: List, action: null, active: false, title: 'List' },
-            ].map(({ icon: Icon, action, active, title }) => (
-              <button
-                key={title}
-                onClick={action || undefined}
-                title={title}
-                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150"
-                style={{
-                  background: active ? 'rgba(96,212,200,0.12)' : 'transparent',
-                  color: active ? '#60D4C8' : '#7A9E99',
-                }}
-                onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(255,239,178,0.06)'; e.currentTarget.style.color = '#D4C98A'; } }}
-                onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#7A9E99'; } }}
-              >
-                <Icon size={13} />
-              </button>
-            ))}
+        <div className="flex items-center justify-between px-3 pb-2 pt-1">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleCodeMode}
+              title="Code Mode"
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${isCodeMode ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
+            >
+              <Code size={16} />
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {charCount > MAX_CHARS * 0.7 && (
-              <span
-                className="text-xs tabular-nums font-mono"
-                style={{ color: isOverLimit ? '#F87171' : charCount > MAX_CHARS * 0.9 ? '#FCD34D' : 'rgba(122,158,153,0.5)' }}
-              >
+              <span className={`text-xs tabular-nums font-mono ${isOverLimit ? 'text-red-500' : charCount > MAX_CHARS * 0.9 ? 'text-yellow-500' : 'text-gray-400'}`}>
                 {charCount}/{MAX_CHARS}
               </span>
             )}
             {input.length > 0 && (
               <button
                 onClick={clearAll}
-                className="w-6 h-6 rounded-lg flex items-center justify-center transition-all"
-                style={{ color: '#7A9E99' }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.08)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = '#7A9E99'; e.currentTarget.style.background = 'transparent'; }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
               >
-                <X size={12} />
+                <X size={16} />
               </button>
             )}
             <button
               onClick={() => doSend(input)}
               disabled={!canSend}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
-              style={{
-                background: canSend
-                  ? 'linear-gradient(135deg, #FFEFB2, #F5DC6E)'
-                  : 'rgba(255,239,178,0.08)',
-                color: canSend ? '#013E37' : '#7A9E99',
-                cursor: canSend ? 'pointer' : 'not-allowed',
-                boxShadow: canSend ? '0 2px 10px rgba(255,239,178,0.2)' : 'none',
-                transform: canSend ? 'translateY(0)' : 'none',
-              }}
-              onMouseEnter={(e) => canSend && (e.currentTarget.style.transform = 'translateY(-1px)')}
-              onMouseLeave={(e) => canSend && (e.currentTarget.style.transform = 'translateY(0)')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all shadow-sm ${canSend ? 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
             >
-              <Send size={12} />
+              <Send size={14} />
               <span className="hidden sm:inline">Send</span>
             </button>
           </div>
         </div>
       </div>
 
-      <p className="text-center text-xs" style={{ color: 'rgba(122,158,153,0.35)' }}>
+      <p className="text-center text-xs mt-2 text-gray-400">
         {isCodeMode ? '✦ AI will auto-explain your code for everyone in the room' : 'Enter to send · Shift+Enter for new line'}
       </p>
     </div>
