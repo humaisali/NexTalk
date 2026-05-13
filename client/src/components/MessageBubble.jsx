@@ -1,44 +1,38 @@
 import CodeBlock from './CodeBlock';
+import { Globe } from 'lucide-react';
 
 const TONE_CONFIG = {
   aggressive: {
     label: 'Aggressive',
-    color: '#F87171',
-    bg: 'rgba(248,113,113,0.1)',
-    border: 'rgba(248,113,113,0.25)',
-    dot: '#F87171',
+    color: '#ef4444',
+    bg: '#fef2f2',
+    border: '#fecaca',
+    dot: '#ef4444',
   },
   neutral: {
     label: 'Neutral',
-    color: '#FCD34D',
-    bg: 'rgba(252,211,77,0.1)',
-    border: 'rgba(252,211,77,0.25)',
-    dot: '#FCD34D',
+    color: '#f59e0b',
+    bg: '#fffbeb',
+    border: '#fde68a',
+    dot: '#f59e0b',
   },
   friendly: {
     label: 'Friendly',
-    color: '#4ADE80',
-    bg: 'rgba(74,222,128,0.1)',
-    border: 'rgba(74,222,128,0.25)',
-    dot: '#4ADE80',
+    color: '#10b981',
+    bg: '#ecfdf5',
+    border: '#a7f3d0',
+    dot: '#10b981',
   },
 };
 
-const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining }) => {
+const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining, translation, isTranslating, onTranslate }) => {
   const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const tone = msg.tone ? TONE_CONFIG[msg.tone] : null;
 
   if (msg.type === 'system') {
     return (
       <div className="flex justify-center my-4">
-        <span
-          className="text-xs px-4 py-1.5 rounded-full"
-          style={{
-            color: 'rgba(122,158,153,0.6)',
-            background: 'rgba(255,239,178,0.04)',
-            border: '1px solid rgba(255,239,178,0.07)',
-          }}
-        >
+        <span className="text-xs px-4 py-1.5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm">
           {msg.content}
         </span>
       </div>
@@ -53,15 +47,7 @@ const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining }) => {
 
       {/* Avatar */}
       <div className="flex-shrink-0 mt-0.5">
-        <div
-          className="w-8 h-8 rounded-xl overflow-hidden flex items-center justify-center text-xs font-bold"
-          style={{
-            background: 'linear-gradient(135deg, #FFEFB2, #F5DC6E)',
-            border: '1px solid rgba(255,239,178,0.2)',
-            color: '#013E37',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-          }}
-        >
+        <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 border border-gray-100 shadow-sm">
           {hasImg
             ? <img src={senderAvatar} alt="" className="w-full h-full object-cover" />
             : msg.sender?.username?.[0]?.toUpperCase() || '?'
@@ -75,17 +61,17 @@ const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining }) => {
         {/* Sender + time */}
         {!isOwn && (
           <div className="flex items-baseline gap-2 px-1">
-            <span className="text-xs font-semibold" style={{ color: '#FFEFB2' }}>
+            <span className="text-xs font-semibold text-gray-700">
               {msg.sender?.username}
             </span>
-            <span className="text-xs" style={{ color: 'rgba(122,158,153,0.5)' }}>{time}</span>
+            <span className="text-xs text-gray-400">{time}</span>
           </div>
         )}
 
         {/* Tone badge */}
         {isOwn && tone && (
           <div
-            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full"
+            className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full mb-0.5 font-medium"
             style={{ color: tone.color, background: tone.bg, border: `1px solid ${tone.border}` }}
           >
             <div className="w-1.5 h-1.5 rounded-full" style={{ background: tone.dot }} />
@@ -104,26 +90,32 @@ const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining }) => {
           />
         ) : (
           <div
-            className={`px-4 py-2.5 text-sm leading-relaxed break-words ${isOwn ? 'rounded-2xl rounded-tr-sm' : 'rounded-2xl rounded-tl-sm'}`}
-            style={isOwn ? {
-              background: 'linear-gradient(135deg, #013E37 0%, #025A50 100%)',
-              color: '#FFEFB2',
-              border: '1px solid rgba(255,239,178,0.15)',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,239,178,0.08)',
-            } : {
-              background: 'rgba(15,33,30,0.9)',
-              color: '#FFEFB2',
-              border: '1px solid rgba(255,239,178,0.08)',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-            }}
+            className={`px-4 py-2.5 text-sm leading-relaxed break-words relative group/bubble shadow-sm ${isOwn ? 'rounded-2xl rounded-tr-sm bg-blue-600 text-white' : 'rounded-2xl rounded-tl-sm bg-white border border-gray-100 text-gray-800'}`}
           >
             {msg.content}
+            {translation && (
+              <div className={`mt-2 pt-2 border-t text-xs opacity-90 ${isOwn ? 'border-white/20' : 'border-gray-100'}`}>
+                <strong>Translation:</strong> {translation}
+              </div>
+            )}
+            
+            {/* Translate Button */}
+            {!isOwn && onTranslate && (
+              <button 
+                onClick={onTranslate}
+                disabled={isTranslating}
+                className="absolute -bottom-2 -right-2 p-1.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 opacity-0 group-hover/bubble:opacity-100 transition-all hover:scale-110 shadow-sm"
+                title="Translate Message"
+              >
+                {isTranslating ? <div className="w-3 h-3 border-2 border-t-transparent border-blue-600 rounded-full animate-spin" /> : <Globe size={12} />}
+              </button>
+            )}
           </div>
         )}
 
         {/* Timestamp for own messages */}
         {isOwn && (
-          <span className="text-xs px-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'rgba(122,158,153,0.5)' }}>
+          <span className="text-[10px] px-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400">
             {time}
           </span>
         )}
