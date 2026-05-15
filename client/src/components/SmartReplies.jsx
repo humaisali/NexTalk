@@ -5,21 +5,26 @@ const SmartReplies = ({ replies, isLoading, onSelect }) => {
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <div className="flex items-center gap-1 flex-shrink-0">
-        <Zap size={11} style={{ color: '#60D4C8' }} />
-        <span className="text-xs" style={{ color: '#7A9E99' }}>Quick:</span>
+        <Zap size={14} className="text-blue-500" />
+        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Quick:</span>
       </div>
       {isLoading
-        ? [80,110,90].map((w,i) => <div key={i} className="h-7 rounded-full animate-pulse" style={{ width: w, background: '#013E37', border: '1px solid #025A50' }} />)
+        ? [80, 110, 90].map((w, i) => (
+            <div
+              key={i}
+              className="h-8 rounded-full bg-gray-200 animate-pulse border border-gray-100"
+              style={{ width: w }}
+            />
+          ))
         : replies.map((reply, i) => (
-            <button key={i} onClick={() => onSelect?.(reply)}
-              className="text-xs px-3 py-1.5 rounded-full transition-all whitespace-nowrap"
-              style={{ background: '#013E37', border: '1px solid #025A50', color: '#D4C98A' }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#FFEFB2'; e.currentTarget.style.color = '#FFEFB2'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#025A50'; e.currentTarget.style.color = '#D4C98A'; }}>
+            <button
+              key={i}
+              onClick={() => onSelect?.(reply)}
+              className="text-xs font-medium px-4 py-2 rounded-full transition-all whitespace-nowrap bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600 shadow-sm"
+            >
               {reply}
             </button>
-          ))
-      }
+          ))}
     </div>
   );
 };
