@@ -64,10 +64,26 @@ const useRoomSettings = (toast) => {
 
   // ── Copy invite URL to clipboard ─────────────────────────────
   const copyInvite = useCallback(async (url) => {
+    const textToCopy = url || inviteUrl;
     try {
-      await navigator.clipboard.writeText(url || inviteUrl);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        // Fallback for non-secure contexts (like testing on local IP)
+        const textArea = document.createElement('textarea');
+        textArea.value = textToCopy;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+      }
       toast?.success('Invite link copied!');
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast?.error('Could not copy to clipboard.');
     }
   }, [inviteUrl, toast]);
