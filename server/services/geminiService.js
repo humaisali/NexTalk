@@ -5,7 +5,7 @@ let genAI = null;
 const getModel = () => {
   if (!genAI) genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   return genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
     generationConfig: {
       temperature:     0.3,
       topP:            0.8,
@@ -76,18 +76,13 @@ Respond ONLY with this exact JSON (no extra text, no markdown):
 If tone is aggressive or neutral, put a friendlier rewrite in "suggestion".
 If tone is friendly, leave "suggestion" as empty string.`;
 
-  try {
-    const raw    = await callGemini(prompt);
-    const result = extractJSON(raw);
-    return {
-      tone:       ['aggressive','neutral','friendly'].includes(result.tone) ? result.tone : 'neutral',
-      score:      typeof result.score === 'number' ? Math.min(100, Math.max(0, Math.round(result.score))) : 50,
-      suggestion: typeof result.suggestion === 'string' ? result.suggestion : ''
-    };
-  } catch (err) {
-    console.error('analyzeTone error:', err.message);
-    return fallback;
-  }
+  const raw    = await callGemini(prompt);
+  const result = extractJSON(raw);
+  return {
+    tone:       ['aggressive','neutral','friendly'].includes(result.tone) ? result.tone : 'neutral',
+    score:      typeof result.score === 'number' ? Math.min(100, Math.max(0, Math.round(result.score))) : 50,
+    suggestion: typeof result.suggestion === 'string' ? result.suggestion : ''
+  };
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -114,15 +109,10 @@ Rules:
 Respond ONLY with this exact JSON (no extra text):
 {"replies":["reply one","reply two","reply three"]}`;
 
-  try {
-    const raw    = await callGemini(prompt);
-    const result = extractJSON(raw);
-    const replies = Array.isArray(result.replies) ? result.replies.filter(Boolean).slice(0, 3) : [];
-    return { replies };
-  } catch (err) {
-    console.error('getSmartReplies error:', err.message);
-    return fallback;
-  }
+  const raw    = await callGemini(prompt);
+  const result = extractJSON(raw);
+  const replies = Array.isArray(result.replies) ? result.replies.filter(Boolean).slice(0, 3) : [];
+  return { replies };
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -150,18 +140,13 @@ Instructions:
 Respond ONLY with this exact JSON (no markdown, no extra text):
 {"summary":"• point one\\n• point two\\n• point three","keyTopics":["Topic One","Topic Two"]}`;
 
-  try {
-    const raw    = await callGemini(prompt);
-    const result = extractJSON(raw);
-    return {
-      summary:      typeof result.summary === 'string' ? result.summary : '',
-      keyTopics:    Array.isArray(result.keyTopics)    ? result.keyTopics.slice(0, 3) : [],
-      messageCount: textMsgs.length
-    };
-  } catch (err) {
-    console.error('summarizeRoom error:', err.message);
-    return { ...fallback, messageCount: textMsgs.length };
-  }
+  const raw    = await callGemini(prompt);
+  const result = extractJSON(raw);
+  return {
+    summary:      typeof result.summary === 'string' ? result.summary : '',
+    keyTopics:    Array.isArray(result.keyTopics)    ? result.keyTopics.slice(0, 3) : [],
+    messageCount: textMsgs.length
+  };
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -185,14 +170,9 @@ ${truncated}
 Respond ONLY with this exact JSON (no markdown):
 {"explanation":"Your explanation here."}`;
 
-  try {
-    const raw    = await callGemini(prompt);
-    const result = extractJSON(raw);
-    return { explanation: result.explanation || '' };
-  } catch (err) {
-    console.error('explainCode error:', err.message);
-    return fallback;
-  }
+  const raw    = await callGemini(prompt);
+  const result = extractJSON(raw);
+  return { explanation: result.explanation || '' };
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -225,18 +205,35 @@ Score is 0-100 for how strongly the mood is felt.
 Respond ONLY with this exact JSON:
 {"mood":"neutral","score":50}`;
 
-  try {
-    const raw    = await callGemini(prompt);
-    const result = extractJSON(raw);
-    const valid  = ['positive','negative','neutral','tense','excited'];
-    return {
-      mood:  valid.includes(result.mood) ? result.mood : 'neutral',
-      score: typeof result.score === 'number' ? Math.min(100, Math.max(0, Math.round(result.score))) : 50
-    };
-  } catch (err) {
-    console.error('detectMood error:', err.message);
-    return fallback;
-  }
+  const raw    = await callGemini(prompt);
+  const result = extractJSON(raw);
+  const valid  = ['positive','negative','neutral','tense','excited'];
+  return {
+    mood:  valid.includes(result.mood) ? result.mood : 'neutral',
+    score: typeof result.score === 'number' ? Math.min(100, Math.max(0, Math.round(result.score))) : 50
+  };
 };
 
-module.exports = { analyzeTone, getSmartReplies, summarizeRoom, explainCode, detectMood };
+// ══════════════════════════════════════════════════════════════════
+// 6. AUTO-TRANSLATE
+// Returns: { translatedText }
+// ══════════════════════════════════════════════════════════════════
+const translateText = async (text, targetLanguage) => {
+  const fallback = { translatedText: text };
+  if (!text?.trim() || !targetLanguage?.trim()) return fallback;
+
+  const prompt = `Translate the following text into ${targetLanguage}.
+Respond ONLY with a JSON object containing the translated text. Do not include any markdown formatting.
+
+Text: "${text}"
+
+Respond exactly like this:
+{"translatedText":"[your translation here]"}
+`;
+
+  const raw    = await callGemini(prompt);
+  const result = extractJSON(raw);
+  return { translatedText: result.translatedText || text };
+};
+
+module.exports = { analyzeTone, getSmartReplies, summarizeRoom, explainCode, detectMood, translateText };
