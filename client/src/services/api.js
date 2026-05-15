@@ -55,6 +55,7 @@ export const summarizeRoom  = (messages)         => API.post('/api/ai/summarize'
 export const explainCode    = (code, language)   => API.post('/api/ai/explain-code', { code, language });
 export const getRoomMood    = (messages)         => API.post('/api/ai/mood', { messages });
 export const checkAIHealth  = ()                 => API.get('/api/ai/health');
+export const translateText  = (text, targetLanguage) => API.post('/api/ai/translate', { text, targetLanguage });
 
 // ─── Conversations (Direct Messages) ──────────────────────────────
 export const getConversations   = ()               => API.get('/api/conversations');
