@@ -32,7 +32,7 @@ router.post('/tone', async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     console.error('POST /ai/tone:', err.message);
-    res.status(200).json({ tone: 'neutral', score: 50, suggestion: '' });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -49,7 +49,7 @@ router.post('/replies', async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     console.error('POST /ai/replies:', err.message);
-    res.status(200).json({ replies: [] });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -66,7 +66,7 @@ router.post('/summarize', async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     console.error('POST /ai/summarize:', err.message);
-    res.status(200).json({ summary: '', keyTopics: [], messageCount: 0 });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -89,7 +89,7 @@ router.post('/explain-code', async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     console.error('POST /ai/explain-code:', err.message);
-    res.status(200).json({ explanation: '' });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -115,7 +115,26 @@ router.post('/mood', async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     console.error('POST /ai/mood:', err.message);
-    res.status(200).json({ mood: 'neutral', score: 50 });
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/ai/translate
+// Body: { text: string, targetLanguage: string }
+// ─────────────────────────────────────────────
+router.post('/translate', async (req, res) => {
+  try {
+    const { text, targetLanguage } = req.body;
+    if (!text?.trim() || !targetLanguage?.trim()) {
+      return res.status(400).json({ message: 'text and targetLanguage are required.' });
+    }
+    
+    const result = await gemini.translateText(text.trim(), targetLanguage.trim());
+    res.status(200).json(result);
+  } catch (err) {
+    console.error('POST /ai/translate:', err.message);
+    res.status(500).json({ message: err.message });
   }
 });
 

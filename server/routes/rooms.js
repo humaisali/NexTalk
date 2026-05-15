@@ -9,11 +9,11 @@ router.use(authMiddleware);
 
 // ─── Helper: is user a member? ────────────────────────────────────
 const isMember = (room, userId) =>
-  room.members.some((m) => m.toString() === userId.toString());
+  room.members.some((m) => (m._id || m).toString() === userId.toString());
 
 const isAdmin = (room, userId) =>
-  room.admins.some((a) => a.toString() === userId.toString()) ||
-  room.createdBy.toString() === userId.toString();
+  room.admins.some((a) => (a._id || a).toString() === userId.toString()) ||
+  (room.createdBy._id || room.createdBy).toString() === userId.toString();
 
 // ─────────────────────────────────────────────
 // GET /api/rooms
@@ -175,7 +175,7 @@ router.put('/:id', async (req, res) => {
     if (!isAdmin(room, req.user._id))
       return res.status(403).json({ message: 'Only admins can edit room settings.' });
 
-    const { name, description, isPrivate } = req.body;
+    const { name, description, isPrivate, avatar } = req.body;
     if (name) {
       if (name.trim().length < 2)
         return res.status(400).json({ message: 'Room name must be at least 2 characters.' });
@@ -185,7 +185,8 @@ router.put('/:id', async (req, res) => {
       room.name = name.trim();
     }
     if (description !== undefined) room.description = description.trim();
-    if (isPrivate    !== undefined) room.isPrivate = isPrivate;
+    if (isPrivate   !== undefined) room.isPrivate = isPrivate;
+    if (avatar      !== undefined) room.avatar = avatar;
 
     await room.save();
     await room.populate('createdBy', 'username avatar');
