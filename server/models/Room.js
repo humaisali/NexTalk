@@ -7,6 +7,7 @@ const RoomSchema = new mongoose.Schema({
     trim: true, minlength: 2, maxlength: 50
   },
   description: { type: String, default: '', maxlength: 200 },
+  avatar:      { type: String, default: '' },
   createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
   members:  [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
