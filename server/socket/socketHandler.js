@@ -80,9 +80,61 @@ const socketHandler = (io) => {
     const user = socket.user;
     console.log(`🔌 ${user.username} connected [${socket.id}]`);
 
-    await User.findByIdAndUpdate(user._id, { isOnline: true });
+    const updatedUser = await User.findByIdAndUpdate(user._id, { isOnline: true }, { new: true });
+    if (updatedUser) {
+      io.emit('user_presence_update', {
+        userId: updatedUser._id.toString(),
+        username: updatedUser.username,
+        avatar: updatedUser.avatar,
+        isOnline: true,
+        lastSeen: updatedUser.lastSeen,
+        statusType: updatedUser.statusType,
+        statusText: updatedUser.statusText,
+        bio: updatedUser.bio
+      });
+    }
     socketToUser.set(socket.id, user._id.toString());
     userSockets.set(user._id.toString(), socket.id);   // for DM delivery
+
+    // Mark pending direct messages as delivered
+    setImmediate(async () => {
+      try {
+        const unreadDMs = await DirectMessage.find({
+          sender: { $ne: user._id },
+          deliveredTo: { $ne: user._id }
+        }).populate({
+          path: 'conversation',
+          match: { participants: user._id }
+        });
+
+        const pendingDMs = unreadDMs.filter(m => m.conversation);
+        if (pendingDMs.length > 0) {
+          const dmIds = pendingDMs.map(m => m._id);
+          await DirectMessage.updateMany(
+            { _id: { $in: dmIds } },
+            { $addToSet: { deliveredTo: user._id } }
+          );
+
+          // Group by conversation and emit dm_delivered_batch
+          const convGroups = {};
+          pendingDMs.forEach(m => {
+            const cid = m.conversation._id.toString();
+            if (!convGroups[cid]) convGroups[cid] = [];
+            convGroups[cid].push(m._id);
+          });
+
+          for (const cid of Object.keys(convGroups)) {
+            io.to(`dm_${cid}`).emit('dm_delivered_batch', {
+              conversationId: cid,
+              messageIds: convGroups[cid],
+              userId: user._id
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Delivery batch update error:', err);
+      }
+    });
 
     // ── ROOM EVENTS ────────────────────────────────────────────────
 
@@ -129,16 +181,39 @@ const socketHandler = (io) => {
       io.to(roomId).emit('online_users',    { users: getRoomUserList(roomId) });
     });
 
-    socket.on('send_message', async ({ roomId, content, type = 'text', language = '' }) => {
+    socket.on('send_message', async ({ roomId, content, type = 'text', language = '', fileUrl = '', fileName = '', fileType = '', fileSize = 0 }) => {
       try {
-        if (!content?.trim()) return;
+        if (type === 'text' && !content?.trim()) return;
 
-        const message = await Message.create({ room: roomId, sender: user._id, content: content.trim(), type, language });
-        await message.populate('sender', 'username avatar');
+        // Check if only admins can post
+        const room = await Room.findById(roomId);
+        if (!room) return socket.emit('error', { message: 'Room not found.' });
+
+        const isUserAdmin = room.admins.some(a => a.toString() === user._id.toString()) || 
+                            room.createdBy.toString() === user._id.toString();
+
+        if (room.settings?.onlyAdminsCanPost && !isUserAdmin) {
+          return socket.emit('error', { message: 'Only admins can post messages in this room.' });
+        }
+
+        const message = await Message.create({
+          room: roomId,
+          sender: user._id,
+          content: content ? content.trim() : '',
+          type,
+          language,
+          fileUrl,
+          fileName,
+          fileType,
+          fileSize,
+          readBy: [user._id]
+        });
+
+        await message.populate('sender', 'username avatar bio statusText statusType');
         io.to(roomId).emit('receive_message', { message });
 
         // Auto code explanation
-        if (type === 'code' && content.trim().length > 10) {
+        if (type === 'code' && content && content.trim().length > 10) {
           setImmediate(async () => {
             try {
               const { explanation } = await gemini.explainCode(content.trim(), language || 'javascript');
@@ -157,6 +232,9 @@ const socketHandler = (io) => {
 
       } catch (err) {
         console.error('send_message:', err);
+        try {
+          require('fs').appendFileSync(require('path').join(__dirname, '../error.log'), `[${new Date().toISOString()}] send_message error: ${err.stack || err}\n`);
+        } catch (logErr) {}
         socket.emit('error', { message: 'Failed to send message.' });
       }
     });
@@ -184,6 +262,27 @@ const socketHandler = (io) => {
         const roomKey = `dm_${conversationId}`;
         socket.join(roomKey);
         console.log(`💬 ${user.username} joined DM room [${conversationId}]`);
+
+        // Mark all messages as read by current user
+        const otherId = conversation.participants
+          .find((p) => p.toString() !== user._id.toString())
+          ?.toString();
+
+        const result = await DirectMessage.updateMany(
+          { conversation: conversationId, sender: otherId, readBy: { $ne: user._id } },
+          { $addToSet: { readBy: user._id, deliveredTo: user._id } }
+        );
+
+        if (result.modifiedCount > 0 || (conversation.unreadCount.get(user._id.toString()) || 0) > 0) {
+          conversation.unreadCount.set(user._id.toString(), 0);
+          await conversation.save();
+
+          // Notify the other user (sender) that their messages have been read
+          io.to(roomKey).emit('dm_read', {
+            conversationId,
+            readerId: user._id
+          });
+        }
       } catch (err) {
         console.error('join_dm:', err);
         socket.emit('error', { message: 'Failed to join DM.' });
@@ -202,9 +301,9 @@ const socketHandler = (io) => {
      * Saves to DB, updates conversation lastMessage + unread,
      * then delivers to both users via the dm_ socket room.
      */
-    socket.on('send_dm', async ({ conversationId, content, type = 'text', language = '' }) => {
+    socket.on('send_dm', async ({ conversationId, content, type = 'text', language = '', fileUrl = '', fileName = '', fileType = '', fileSize = 0 }) => {
       try {
-        if (!content?.trim()) return;
+        if (type === 'text' && !content?.trim()) return;
 
         // Security: verify sender is a participant
         const conversation = await Conversation.findOne({
@@ -213,54 +312,98 @@ const socketHandler = (io) => {
         });
         if (!conversation) return socket.emit('error', { message: 'Not a participant.' });
 
-        // Save message
-        const dm = await DirectMessage.create({
-          conversation: conversationId,
-          sender:       user._id,
-          content:      content.trim(),
-          type,
-          language
-        });
-        await dm.populate('sender', 'username avatar');
-
-        // Update conversation snapshot + unread count for the OTHER user
         const otherId = conversation.participants
           .find((p) => p.toString() !== user._id.toString())
           ?.toString();
 
-        const currentUnread = conversation.unreadCount.get(otherId) || 0;
+        const dmRoom = `dm_${conversationId}`;
+        const clients = io.sockets.adapter.rooms.get(dmRoom);
+        const otherSocketId = userSockets.get(otherId);
+
+        let isRecipientInRoom = false;
+        if (clients && otherSocketId && clients.has(otherSocketId)) {
+          isRecipientInRoom = true;
+        }
+
+        const readBy = [user._id];
+        const deliveredTo = [user._id];
+
+        if (isRecipientInRoom) {
+          readBy.push(otherId);
+          deliveredTo.push(otherId);
+        } else if (otherSocketId) {
+          deliveredTo.push(otherId);
+        }
+
+        // Save message
+        const dm = await DirectMessage.create({
+          conversation: conversationId,
+          sender:       user._id,
+          content:      content ? content.trim() : '',
+          type,
+          language,
+          fileUrl,
+          fileName,
+          fileType,
+          fileSize,
+          readBy,
+          deliveredTo
+        });
+        await dm.populate('sender', 'username avatar bio statusText statusType');
+
+        // Update conversation snapshot + unread count for the OTHER user
+        if (!isRecipientInRoom) {
+          const currentUnread = conversation.unreadCount.get(otherId) || 0;
+          conversation.unreadCount.set(otherId, currentUnread + 1);
+        } else {
+          conversation.unreadCount.set(otherId, 0);
+        }
+
         conversation.lastMessage = {
-          content:   content.trim(),
+          content:   type === 'text' ? (content ? content.trim() : '') : `📎 Attachment: ${fileName || 'file'}`,
           sender:    user._id,
           type,
           createdAt: dm.createdAt
         };
-        conversation.unreadCount.set(otherId, currentUnread + 1);
         conversation.updatedAt = new Date();
         await conversation.save();
 
         // Populate and broadcast to dm_ room (both users if both online)
-        const dmRoom = `dm_${conversationId}`;
         io.to(dmRoom).emit('receive_dm', { conversationId, message: dm });
 
         // If the other user is online but NOT in the dm_ room,
         // deliver a notification to their personal socket
-        const otherSocketId = userSockets.get(otherId);
-        if (otherSocketId) {
+        if (otherSocketId && !isRecipientInRoom) {
           const otherSocket = io.sockets.sockets.get(otherSocketId);
-          if (otherSocket && !otherSocket.rooms.has(dmRoom)) {
+          if (otherSocket) {
             otherSocket.emit('dm_notification', {
               conversationId,
               sender:  { _id: user._id, username: user.username, avatar: user.avatar },
-              content: content.trim(),
+              content: type === 'text' ? (content ? content.trim() : '') : `📎 ${fileName || 'file'}`,
               type
             });
+            // Let the sender know it was delivered
+            io.to(dmRoom).emit('dm_delivered', { conversationId, messageId: dm._id, userId: otherId });
           }
+        } else if (!otherSocketId) {
+          // Send push notification since other user is offline
+          const { sendPushNotification } = require('../utils/pushHelper');
+          setImmediate(async () => {
+            await sendPushNotification(
+              otherId,
+              `New message from ${user.username}`,
+              type === 'text' ? (content ? content.trim() : '') : `📎 Attachment: ${fileName || 'file'}`,
+              { url: `/chat/dm/${conversationId}`, conversationId }
+            );
+          });
         }
 
-        console.log(`📨 DM [${conversationId}] ${user.username}: "${content.substring(0, 50)}"`);
+        console.log(`📨 DM [${conversationId}] ${user.username}: "${type === 'text' ? content.substring(0, 50) : fileName}"`);
       } catch (err) {
         console.error('send_dm:', err);
+        try {
+          require('fs').appendFileSync(require('path').join(__dirname, '../error.log'), `[${new Date().toISOString()}] send_dm error: ${err.stack || err}\n`);
+        } catch (logErr) {}
         socket.emit('error', { message: 'Failed to send message.' });
       }
     });
@@ -289,7 +432,19 @@ const socketHandler = (io) => {
       socketToUser.delete(socket.id);
       userSockets.delete(user._id.toString());
 
-      await User.findByIdAndUpdate(user._id, { isOnline: false, lastSeen: new Date() });
+      const disconnectedUser = await User.findByIdAndUpdate(user._id, { isOnline: false, lastSeen: new Date() }, { new: true });
+      if (disconnectedUser) {
+        io.emit('user_presence_update', {
+          userId: disconnectedUser._id.toString(),
+          username: disconnectedUser.username,
+          avatar: disconnectedUser.avatar,
+          isOnline: false,
+          lastSeen: disconnectedUser.lastSeen,
+          statusType: disconnectedUser.statusType,
+          statusText: disconnectedUser.statusText,
+          bio: disconnectedUser.bio
+        });
+      }
     });
   });
 };

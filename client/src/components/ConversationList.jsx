@@ -17,10 +17,10 @@ const ConversationList = ({ conversations = [], loading, activeConvId, currentUs
       <>
         {[...Array(5)].map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-3 py-3 animate-pulse">
-            <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0" />
+            <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-nt-bg3 flex-shrink-0" />
             <div className="flex-1 space-y-2">
-              <div className="h-4 w-24 bg-gray-200 rounded" />
-              <div className="h-3 w-32 bg-gray-200 rounded" />
+              <div className="h-4 w-24 bg-gray-200 dark:bg-nt-bg3 rounded" />
+              <div className="h-3 w-32 bg-gray-200 dark:bg-nt-bg3 rounded" />
             </div>
           </div>
         ))}
@@ -31,8 +31,8 @@ const ConversationList = ({ conversations = [], loading, activeConvId, currentUs
   if (conversations.length === 0) {
     return (
       <div className="text-center py-10 px-4">
-        <MessageCircle size={24} className="mx-auto text-gray-300 mb-2" />
-        <p className="text-sm text-gray-500 font-medium">No messages yet</p>
+        <MessageCircle size={24} className="mx-auto text-gray-300 dark:text-nt-muted mb-2" />
+        <p className="text-sm text-gray-500 dark:text-nt-muted font-medium">No messages yet</p>
       </div>
     );
   }
@@ -48,30 +48,40 @@ const ConversationList = ({ conversations = [], loading, activeConvId, currentUs
                        conv.unreadCount?.[currentUserId?.toString()] || 0;
         const hasImgOther = other?.avatar?.startsWith?.('data:') || other?.avatar?.startsWith?.('http');
 
+        const statusColors = {
+          active: 'bg-green-500',
+          away: 'bg-amber-500',
+          busy: 'bg-rose-500',
+          dnd: 'bg-purple-500'
+        };
+        const statusColor = statusColors[other?.statusType || 'active'] || 'bg-green-500';
+
         return (
           <button key={conv._id} onClick={() => onSelect(conv)}
-            className={`chat-list-item ${isActive ? 'active bg-white shadow-sm' : ''}`}>
+            className={`chat-list-item ${isActive ? 'active bg-white dark:bg-nt-bg3/40 shadow-sm' : ''}`}>
             <div className="relative">
-              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-lg">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 dark:bg-nt-bg3 flex items-center justify-center text-gray-600 dark:text-nt-text font-bold text-lg">
                 {hasImgOther
                   ? <img src={other.avatar} alt="" className="w-full h-full object-cover" />
                   : other?.username?.[0]?.toUpperCase() || '?'}
               </div>
-              {other?.isOnline && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />}
+              {other?.isOnline && (
+                <div className={`absolute bottom-0 right-0 w-3 h-3 ${statusColor} border-2 border-white dark:border-nt-bg1 rounded-full`} />
+              )}
             </div>
             <div className="flex-1 min-w-0 pt-1">
               <div className="flex items-baseline justify-between mb-0.5">
-                <span className={`text-sm truncate ${isActive ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
+                <span className={`text-sm truncate ${isActive ? 'font-bold text-gray-900 dark:text-white' : 'font-semibold text-gray-800 dark:text-nt-text'}`}>
                   {other?.username || 'Unknown'}
                 </span>
                 {lastTime && (
-                  <span className={`text-xs flex-shrink-0 ml-2 ${unread > 0 ? 'text-blue-600 font-bold' : 'text-gray-400'}`}>
+                  <span className={`text-xs flex-shrink-0 ml-2 ${unread > 0 ? 'text-blue-600 dark:text-[#60D4C8] font-bold' : 'text-gray-400 dark:text-nt-muted'}`}>
                     {formatTime(lastTime)}
                   </span>
                 )}
               </div>
               <div className="flex items-center justify-between">
-                <p className={`text-xs truncate ${unread > 0 ? 'font-bold text-gray-800' : 'text-gray-500'}`}>
+                <p className={`text-xs truncate ${unread > 0 ? 'font-bold text-gray-800 dark:text-white' : 'text-gray-500 dark:text-nt-muted'}`}>
                   {lastContent || <span className="italic opacity-60">No messages yet</span>}
                 </p>
                 {unread > 0 && (

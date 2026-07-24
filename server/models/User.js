@@ -19,9 +19,21 @@ const UserSchema = new mongoose.Schema({
   },
 
   avatar:    { type: String, default: '' },
+  bio:        { type: String, default: '', maxlength: 250 },
+  statusText: { type: String, default: '', maxlength: 80 },
+  statusType: { type: String, enum: ['active', 'away', 'busy', 'dnd'], default: 'active' },
   language:  { type: String, default: 'en' },
   isOnline:  { type: Boolean, default: false },
   lastSeen:  { type: Date,   default: Date.now },
+  pushSubscriptions: [
+    {
+      endpoint: { type: String, required: true },
+      keys: {
+        p256dh: { type: String, required: true },
+        auth:   { type: String, required: true }
+      }
+    }
+  ],
   createdAt: { type: Date,   default: Date.now }
 });
 
@@ -50,7 +62,5 @@ UserSchema.virtual('nexTalkNumberDisplay').get(function () {
   return this.nexTalkNumber.replace(/^(\+100)(\d{7})$/, '$1 $2');
 });
 
-// Index for fast lookup by nexTalkNumber
-UserSchema.index({ nexTalkNumber: 1 });
 
 module.exports = mongoose.model('User', UserSchema);

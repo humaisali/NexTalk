@@ -49,12 +49,12 @@ ConversationSchema.statics.findOrCreate = async function (userIdA, userIdB) {
   let conversation = await this.findOne({
     participants: { $all: sorted, $size: 2 }
   })
-    .populate('participants', 'username avatar nexTalkNumber isOnline lastSeen')
+    .populate('participants', 'username avatar nexTalkNumber isOnline lastSeen bio statusText statusType')
     .populate('lastMessage.sender', 'username');
 
   if (!conversation) {
     conversation = await this.create({ participants: sorted });
-    await conversation.populate('participants', 'username avatar nexTalkNumber isOnline lastSeen');
+    await conversation.populate('participants', 'username avatar nexTalkNumber isOnline lastSeen bio statusText statusType');
   }
 
   return conversation;

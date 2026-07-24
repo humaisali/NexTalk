@@ -63,4 +63,22 @@ export const startConversation  = (nexTalkNumber)  => API.post('/api/conversatio
 export const getDirectMessages  = (conversationId) => API.get(`/api/conversations/${conversationId}/messages`);
 export const getUnreadDMCount   = ()               => API.get('/api/conversations/unread-count');
 
+// ─── Room Settings & Join Requests (Moderation) ───────────────────
+export const updateRoomSettings  = (id, data)       => API.put(`/api/rooms/${id}/settings`, data);
+export const getJoinRequests     = (id)             => API.get(`/api/rooms/${id}/join-requests`);
+export const approveJoinRequest  = (id, userId)     => API.post(`/api/rooms/${id}/join-requests/${userId}/approve`);
+export const rejectJoinRequest   = (id, userId)     => API.post(`/api/rooms/${id}/join-requests/${userId}/reject`);
+
+// ─── Uploads ──────────────────────────────────────────────────────
+export const uploadFile          = (formData)       => API.post('/api/upload', formData, {
+  headers: {
+    'Content-Type': 'multipart/form-data'
+  }
+});
+
+// ─── Push Subscriptions ──────────────────────────────────────────
+export const getVapidPublicKey   = ()               => API.get('/api/notifications/vapid-public-key');
+export const subscribePush       = (subscription)   => API.post('/api/notifications/subscribe', subscription);
+export const unsubscribePush     = (subscription)   => API.post('/api/notifications/unsubscribe', subscription);
+
 export default API;

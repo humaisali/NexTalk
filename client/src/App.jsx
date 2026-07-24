@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider }         from './context/ThemeContext';
 import { SocketProvider }        from './context/SocketContext';
 import { ToastProvider }         from './context/ToastContext';
 import ErrorBoundary             from './components/ErrorBoundary';
@@ -52,13 +53,15 @@ const AppRoutes = () => (
 
 const App = () => (
   <ErrorBoundary>
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <AppRoutes />
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AuthProvider>
+          <ToastProvider>
+            <AppRoutes />
+          </ToastProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   </ErrorBoundary>
 );
 

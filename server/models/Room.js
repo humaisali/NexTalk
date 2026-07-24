@@ -21,6 +21,11 @@ const RoomSchema = new mongoose.Schema({
   },
   isPrivate: { type: Boolean, default: true },  // true = invite-only
   maxMembers: { type: Number, default: 200 },
+  settings: {
+    onlyAdminsCanPost: { type: Boolean, default: false },
+    approvalRequired:  { type: Boolean, default: false }
+  },
+  joinRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 
   // ── Mood ───────────────────────────────────────────────────────
   mood:      { type: String, enum: ['positive','negative','neutral','tense','excited'], default: 'neutral' },
@@ -28,8 +33,5 @@ const RoomSchema = new mongoose.Schema({
 
   createdAt: { type: Date, default: Date.now }
 });
-
-// Index for fast invite-code lookups
-RoomSchema.index({ inviteCode: 1 });
 
 module.exports = mongoose.model('Room', RoomSchema);

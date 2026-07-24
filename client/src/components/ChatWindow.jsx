@@ -10,20 +10,27 @@ const ChatWindow = ({ onExplainCode, explainLoading, translations, translateLoad
   const bottomRef                             = useRef(null);
   const containerRef                          = useRef(null);
   const [showScrollBtn, setShowScrollBtn]     = useState(false);
+  const scrolledForRoomRef                    = useRef(null);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    
+    const isInitialRoomLoad = scrolledForRoomRef.current !== activeRoom?._id && messages.length > 0;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
-    if (nearBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const lastMessage = messages[messages.length - 1];
+    const isOwnLastMessage = lastMessage && (lastMessage.sender?._id === user?._id || lastMessage.sender?._id?.toString() === user?._id?.toString());
+
+    if (isInitialRoomLoad || nearBottom || isOwnLastMessage) {
+      bottomRef.current?.scrollIntoView({ behavior: isInitialRoomLoad ? 'auto' : 'smooth' });
       setShowScrollBtn(false);
+      if (isInitialRoomLoad) {
+        scrolledForRoomRef.current = activeRoom?._id;
+      }
     } else {
       setShowScrollBtn(true);
     }
-  }, [messages]);
-
-  useEffect(() => { setShowScrollBtn(false); }, [activeRoom?._id]);
+  }, [messages, activeRoom?._id, user?._id]);
 
   const handleScroll = () => {
     const el = containerRef.current;

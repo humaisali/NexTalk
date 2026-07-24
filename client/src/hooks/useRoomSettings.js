@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import {
   getRoomDetails, updateRoom, regenerateInvite,
-  leaveRoom, kickMember
+  leaveRoom, kickMember, updateRoomSettings,
+  getJoinRequests, approveJoinRequest, rejectJoinRequest
 } from '../services/api';
 
 /**
@@ -14,6 +15,8 @@ const useRoomSettings = (toast) => {
   const [loading,          setLoading]          = useState(false);
   const [saving,           setSaving]           = useState(false);
   const [regenerating,     setRegenerating]     = useState(false);
+  const [joinRequests,     setJoinRequests]     = useState([]);
+  const [loadingRequests,  setLoadingRequests]  = useState(false);
 
   // ── Load room details + invite URL ────────────────────────────
   const loadRoom = useCallback(async (roomId) => {
@@ -43,6 +46,59 @@ const useRoomSettings = (toast) => {
       throw err;
     } finally {
       setSaving(false);
+    }
+  }, [toast]);
+
+  // ── Save specific room settings (broadcast/approval) ─────────
+  const saveSettings = useCallback(async (roomId, settingsUpdates) => {
+    setSaving(true);
+    try {
+      const { data } = await updateRoomSettings(roomId, settingsUpdates);
+      setRoomDetails((prev) => prev ? { ...prev, settings: { ...prev.settings, ...data.settings } } : prev);
+      toast?.success('Moderation settings updated!');
+      return data.settings;
+    } catch (err) {
+      toast?.error(err?.response?.data?.message || 'Failed to update moderation settings.');
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }, [toast]);
+
+  // ── Fetch pending join requests ──────────────────────────────
+  const loadJoinRequests = useCallback(async (roomId) => {
+    setLoadingRequests(true);
+    try {
+      const { data } = await getJoinRequests(roomId);
+      setJoinRequests(data.joinRequests || []);
+    } catch (err) {
+      toast?.error('Failed to load join requests.');
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, [toast]);
+
+  // ── Approve join request ─────────────────────────────────────
+  const approveRequest = useCallback(async (roomId, userId, username) => {
+    try {
+      await approveJoinRequest(roomId, userId);
+      setJoinRequests((prev) => prev.filter((r) => r._id?.toString() !== userId));
+      toast?.success(`Approved ${username || 'user'}!`);
+      // Optionally reload room to get updated member count/list
+      loadRoom(roomId);
+    } catch (err) {
+      toast?.error(err?.response?.data?.message || 'Failed to approve request.');
+    }
+  }, [toast, loadRoom]);
+
+  // ── Reject join request ─────────────────────────────────────
+  const rejectRequest = useCallback(async (roomId, userId, username) => {
+    try {
+      await rejectJoinRequest(roomId, userId);
+      setJoinRequests((prev) => prev.filter((r) => r._id?.toString() !== userId));
+      toast?.success(`Rejected request from ${username || 'user'}.`);
+    } catch (err) {
+      toast?.error(err?.response?.data?.message || 'Failed to reject request.');
     }
   }, [toast]);
 
@@ -116,7 +172,9 @@ const useRoomSettings = (toast) => {
 
   return {
     roomDetails, inviteUrl, loading, saving, regenerating,
-    loadRoom, saveRoom, regen, copyInvite, leave, kick
+    joinRequests, loadingRequests,
+    loadRoom, saveRoom, saveSettings, loadJoinRequests, approveRequest, rejectRequest,
+    regen, copyInvite, leave, kick
   };
 };
 

@@ -14,18 +14,22 @@ const MessageSchema = new mongoose.Schema({
   },
   content: {
     type: String,
-    required: true,
+    required: false,
     maxlength: 5000
   },
   type: {
     type: String,
-    enum: ['text', 'code'],
+    enum: ['text', 'code', 'file', 'voice'],
     default: 'text'
   },
   language: {
     type: String,
     default: ''       // programming language for code messages (e.g. 'javascript')
   },
+  fileUrl:  { type: String },
+  fileName: { type: String },
+  fileType: { type: String },
+  fileSize: { type: Number },
   tone: {
     type: String,
     enum: ['aggressive', 'neutral', 'friendly', ''],

@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
     const conversations = await Conversation.find({
       participants: req.user._id
     })
-      .populate('participants', 'username avatar nexTalkNumber isOnline lastSeen')
+      .populate('participants', 'username avatar nexTalkNumber isOnline lastSeen bio statusText statusType')
       .populate('lastMessage.sender', 'username')
       .sort({ updatedAt: -1 });
 
@@ -42,7 +42,7 @@ router.post('/start', async (req, res) => {
 
     // Find the target user
     const targetUser = await User.findOne({ nexTalkNumber: cleaned })
-      .select('username avatar nexTalkNumber isOnline lastSeen');
+      .select('username avatar nexTalkNumber isOnline lastSeen bio statusText statusType');
 
     if (!targetUser) {
       return res.status(404).json({ message: 'No NexTalk user found with that number.' });
@@ -80,14 +80,22 @@ router.get('/:id/messages', async (req, res) => {
       .limit(50);
 
     // Mark all as read by current user
-    await DirectMessage.updateMany(
+    const result = await DirectMessage.updateMany(
       { conversation: req.params.id, readBy: { $ne: req.user._id } },
-      { $addToSet: { readBy: req.user._id } }
+      { $addToSet: { readBy: req.user._id, deliveredTo: req.user._id } }
     );
 
     // Reset unread count for this user
     conversation.unreadCount.set(req.user._id.toString(), 0);
     await conversation.save();
+
+    const io = req.app.get('io');
+    if (io && result.modifiedCount > 0) {
+      io.to(`dm_${req.params.id}`).emit('dm_read', {
+        conversationId: req.params.id,
+        readerId: req.user._id
+      });
+    }
 
     res.status(200).json({ messages: messages.reverse() });
   } catch (err) {

@@ -6,6 +6,7 @@ import useRooms                 from '../hooks/useRooms';
 import useAI                    from '../hooks/useAI';
 import useConversations         from '../hooks/useConversations';
 import useTranslation           from '../hooks/useTranslation';
+import usePushNotifications     from '../hooks/usePushNotifications';
 
 import PrimarySidebar           from '../components/PrimarySidebar';
 import Sidebar                  from '../components/Sidebar';
@@ -24,6 +25,9 @@ const Chat = () => {
   const { user }                                               = useAuth();
   const { messages, setMessages, activeRoom, isReconnecting, leaveRoom } = useSocket();
   const toast                                                  = useToast();
+
+  // Initialize background push notifications
+  usePushNotifications(user);
 
   const {
     rooms, loading: roomsLoading,

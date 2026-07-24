@@ -108,6 +108,17 @@ router.post('/join/:inviteCode', async (req, res) => {
       return res.status(403).json({ message: 'This room is full.' });
     }
 
+    // Check approval required setting
+    if (room.settings?.approvalRequired) {
+      const alreadyRequested = room.joinRequests.some((u) => u.toString() === req.user._id.toString());
+      if (alreadyRequested) {
+        return res.status(200).json({ message: 'Join request already pending approval.', pendingApproval: true, room });
+      }
+      room.joinRequests.push(req.user._id);
+      await room.save();
+      return res.status(200).json({ message: 'Join request sent to group admins.', pendingApproval: true, room });
+    }
+
     room.members.push(req.user._id);
     await room.save();
     await room.populate('createdBy', 'username avatar');
@@ -126,9 +137,9 @@ router.post('/join/:inviteCode', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const room = await Room.findById(req.params.id)
-      .populate('createdBy', 'username avatar nexTalkNumber')
-      .populate('members',   'username avatar isOnline lastSeen nexTalkNumber')
-      .populate('admins',    'username avatar');
+      .populate('createdBy', 'username avatar nexTalkNumber bio statusText statusType')
+      .populate('members',   'username avatar isOnline lastSeen nexTalkNumber bio statusText statusType')
+      .populate('admins',    'username avatar bio statusText statusType');
 
     if (!room) return res.status(404).json({ message: 'Room not found.' });
     if (!isMember(room, req.user._id))
@@ -264,6 +275,110 @@ router.delete('/:id/members/:userId', async (req, res) => {
   } catch (err) {
     console.error('DELETE /rooms/:id/members/:userId:', err);
     res.status(500).json({ message: 'Failed to remove member.' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// PUT /api/rooms/:id/settings   (admin only)
+// Update group settings (onlyAdminsCanPost, approvalRequired)
+// ─────────────────────────────────────────────
+router.put('/:id/settings', async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.id);
+    if (!room) return res.status(404).json({ message: 'Room not found.' });
+    if (!isAdmin(room, req.user._id))
+      return res.status(403).json({ message: 'Only admins can modify settings.' });
+
+    const { onlyAdminsCanPost, approvalRequired } = req.body;
+
+    if (!room.settings) {
+      room.settings = {};
+    }
+
+    if (onlyAdminsCanPost !== undefined) room.settings.onlyAdminsCanPost = onlyAdminsCanPost;
+    if (approvalRequired !== undefined) room.settings.approvalRequired = approvalRequired;
+
+    await room.save();
+    res.status(200).json({ message: 'Room settings updated.', settings: room.settings });
+  } catch (err) {
+    console.error('PUT /rooms/:id/settings:', err);
+    res.status(500).json({ message: 'Failed to update settings.' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// GET /api/rooms/:id/join-requests   (admin only)
+// Get list of pending join requests
+// ─────────────────────────────────────────────
+router.get('/:id/join-requests', async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.id)
+      .populate('joinRequests', 'username avatar email nexTalkNumber');
+    if (!room) return res.status(404).json({ message: 'Room not found.' });
+    if (!isAdmin(room, req.user._id))
+      return res.status(403).json({ message: 'Only admins can view join requests.' });
+
+    res.status(200).json({ joinRequests: room.joinRequests || [] });
+  } catch (err) {
+    console.error('GET /rooms/:id/join-requests:', err);
+    res.status(500).json({ message: 'Failed to fetch join requests.' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/rooms/:id/join-requests/:userId/approve   (admin only)
+// Approve a user's join request
+// ─────────────────────────────────────────────
+router.post('/:id/join-requests/:userId/approve', async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.id);
+    if (!room) return res.status(404).json({ message: 'Room not found.' });
+    if (!isAdmin(room, req.user._id))
+      return res.status(403).json({ message: 'Only admins can approve join requests.' });
+
+    const targetUserId = req.params.userId;
+    // Check if user is in join requests
+    if (!room.joinRequests.some(u => u.toString() === targetUserId)) {
+      return res.status(400).json({ message: 'No pending join request found for this user.' });
+    }
+
+    // Check if room is full
+    if (room.members.length >= room.maxMembers) {
+      return res.status(403).json({ message: 'This room is full.' });
+    }
+
+    // Remove from join requests, add to members
+    room.joinRequests = room.joinRequests.filter(u => u.toString() !== targetUserId);
+    room.members.push(targetUserId);
+    await room.save();
+
+    res.status(200).json({ message: 'User request approved and added to room.' });
+  } catch (err) {
+    console.error('POST /rooms/:id/join-requests/:userId/approve:', err);
+    res.status(500).json({ message: 'Failed to approve request.' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/rooms/:id/join-requests/:userId/reject   (admin only)
+// Reject a user's join request
+// ─────────────────────────────────────────────
+router.post('/:id/join-requests/:userId/reject', async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.id);
+    if (!room) return res.status(404).json({ message: 'Room not found.' });
+    if (!isAdmin(room, req.user._id))
+      return res.status(403).json({ message: 'Only admins can reject join requests.' });
+
+    const targetUserId = req.params.userId;
+    // Remove from join requests
+    room.joinRequests = room.joinRequests.filter(u => u.toString() !== targetUserId);
+    await room.save();
+
+    res.status(200).json({ message: 'User request rejected.' });
+  } catch (err) {
+    console.error('POST /rooms/:id/join-requests/:userId/reject:', err);
+    res.status(500).json({ message: 'Failed to reject request.' });
   }
 });
 

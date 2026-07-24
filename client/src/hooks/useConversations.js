@@ -77,7 +77,7 @@ const useConversations = () => {
       setConversations((prev) => {
         const updated = prev.map((c) =>
           c._id?.toString() === conversationId
-            ? { ...c, lastMessage: { content: message.content, sender: message.sender, type: message.type, createdAt: message.createdAt }, updatedAt: new Date() }
+            ? { ...c, lastMessage: { content: message.type === 'text' ? message.content : `📎 Attachment: ${message.fileName || 'file'}`, sender: message.sender, type: message.type, createdAt: message.createdAt }, updatedAt: new Date() }
             : c
         );
         // Move updated conversation to top
@@ -88,26 +88,160 @@ const useConversations = () => {
     });
 
     // Notification for a DM in a conversation NOT currently open
-    socket.on('dm_notification', ({ conversationId, sender, content }) => {
+    socket.on('dm_notification', ({ conversationId, sender, content, type }) => {
       setTotalUnread((n) => n + 1);
       setConversations((prev) =>
         prev.map((c) =>
           c._id?.toString() === conversationId
-            ? { ...c, lastMessage: { content, sender, createdAt: new Date() } }
+            ? { ...c, lastMessage: { content: type === 'text' ? content : `📎 ${content || 'file'}`, sender, createdAt: new Date() } }
             : c
         )
       );
+    });
+
+    // Message delivered real-time tracking
+    socket.on('dm_delivered', ({ conversationId, messageId, userId }) => {
+      if (activeConversation?._id?.toString() === conversationId) {
+        setDmMessages((prev) =>
+          prev.map((msg) => {
+            if (msg._id?.toString() === messageId) {
+              const deliveredIds = (msg.deliveredTo || []).map(id => id._id?.toString() || id.toString());
+              if (!deliveredIds.includes(userId)) {
+                return { ...msg, deliveredTo: [...(msg.deliveredTo || []), userId] };
+              }
+            }
+            return msg;
+          })
+        );
+      }
+    });
+
+    // Message delivered batch tracking (offline messages catch-up)
+    socket.on('dm_delivered_batch', ({ conversationId, messageIds, userId }) => {
+      if (activeConversation?._id?.toString() === conversationId) {
+        const idSet = new Set(messageIds.map(id => id.toString()));
+        setDmMessages((prev) =>
+          prev.map((msg) => {
+            if (idSet.has(msg._id?.toString())) {
+              const deliveredIds = (msg.deliveredTo || []).map(id => id._id?.toString() || id.toString());
+              if (!deliveredIds.includes(userId)) {
+                return { ...msg, deliveredTo: [...(msg.deliveredTo || []), userId] };
+              }
+            }
+            return msg;
+          })
+        );
+      }
+    });
+
+    // Message read real-time tracking
+    socket.on('dm_read', ({ conversationId, readerId }) => {
+      if (activeConversation?._id?.toString() === conversationId) {
+        setDmMessages((prev) =>
+          prev.map((msg) => {
+            const msgSenderId = msg.sender?._id?.toString() || msg.sender?.toString();
+            if (msgSenderId !== readerId && !msg.readBy.some(id => (id._id?.toString() || id.toString()) === readerId)) {
+              return { 
+                ...msg, 
+                readBy: [...msg.readBy, readerId], 
+                deliveredTo: msg.deliveredTo?.some(id => (id._id?.toString() || id.toString()) === readerId)
+                  ? msg.deliveredTo 
+                  : [...(msg.deliveredTo || []), readerId]
+              };
+            }
+            return msg;
+          })
+        );
+      }
     });
 
     // Typing indicators
     socket.on('dm_user_typing',         ({ username }) => setDmTypingUser(username));
     socket.on('dm_user_stopped_typing', ()             => setDmTypingUser(null));
 
+    // Dynamic profile sync and presence updates
+    socket.on('user_presence_update', (update) => {
+      const { userId, isOnline, statusType, statusText, bio, avatar, username } = update;
+      
+      setConversations((prev) =>
+        prev.map((c) => {
+          const hasParticipant = c.participants.some((p) => (p._id?.toString() || p.toString()) === userId);
+          if (!hasParticipant) return c;
+
+          return {
+            ...c,
+            participants: c.participants.map((p) => {
+              if ((p._id?.toString() || p.toString()) === userId) {
+                return {
+                  ...p,
+                  avatar: avatar !== undefined ? avatar : p.avatar,
+                  username: username !== undefined ? username : p.username,
+                  isOnline: isOnline !== undefined ? isOnline : p.isOnline,
+                  statusType: statusType !== undefined ? statusType : p.statusType,
+                  statusText: statusText !== undefined ? statusText : p.statusText,
+                  bio: bio !== undefined ? bio : p.bio
+                };
+              }
+              return p;
+            })
+          };
+        })
+      );
+
+      setActiveConversation((current) => {
+        if (!current) return null;
+        const hasParticipant = current.participants.some((p) => (p._id?.toString() || p.toString()) === userId);
+        if (!hasParticipant) return current;
+
+        return {
+          ...current,
+          participants: current.participants.map((p) => {
+            if ((p._id?.toString() || p.toString()) === userId) {
+              return {
+                ...p,
+                avatar: avatar !== undefined ? avatar : p.avatar,
+                username: username !== undefined ? username : p.username,
+                isOnline: isOnline !== undefined ? isOnline : p.isOnline,
+                statusType: statusType !== undefined ? statusType : p.statusType,
+                statusText: statusText !== undefined ? statusText : p.statusText,
+                bio: bio !== undefined ? bio : p.bio
+              };
+            }
+            return p;
+          })
+        };
+      });
+
+      setDmMessages((prev) =>
+        prev.map((msg) => {
+          const msgSenderId = msg.sender?._id?.toString() || msg.sender?.toString();
+          if (msgSenderId === userId) {
+            return {
+              ...msg,
+              sender: typeof msg.sender === 'object' ? {
+                ...msg.sender,
+                avatar: avatar !== undefined ? avatar : msg.sender.avatar,
+                username: username !== undefined ? username : msg.sender.username,
+                statusType: statusType !== undefined ? statusType : msg.sender.statusType,
+                statusText: statusText !== undefined ? statusText : msg.sender.statusText,
+                bio: bio !== undefined ? bio : msg.sender.bio
+              } : msg.sender
+            };
+          }
+          return msg;
+        })
+      );
+    });
+
     return () => {
       socket.off('receive_dm');
       socket.off('dm_notification');
+      socket.off('dm_delivered');
+      socket.off('dm_delivered_batch');
+      socket.off('dm_read');
       socket.off('dm_user_typing');
       socket.off('dm_user_stopped_typing');
+      socket.off('user_presence_update');
     };
   }, [socket, activeConversation]);
 
@@ -159,12 +293,17 @@ const useConversations = () => {
   }, [socket, activeConversation]);
 
   // ── Send DM ────────────────────────────────────────────────────
-  const sendDM = useCallback(({ content }) => {
-    if (!socket || !activeConversation || !content?.trim()) return;
+  const sendDM = useCallback(({ content, type = 'text', fileUrl = '', fileName = '', fileType = '', fileSize = 0 }) => {
+    if (!socket || !activeConversation) return;
+    if (type === 'text' && !content?.trim()) return;
     socket.emit('send_dm', {
       conversationId: activeConversation._id,
-      content:        content.trim(),
-      type:           'text'
+      content:        content ? content.trim() : '',
+      type,
+      fileUrl,
+      fileName,
+      fileType,
+      fileSize
     });
   }, [socket, activeConversation]);
 

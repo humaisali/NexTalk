@@ -184,7 +184,7 @@ module.exports = router;
 // ─────────────────────────────────────────────
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { username, currentPassword, newPassword, avatar } = req.body;
+    const { username, currentPassword, newPassword, avatar, bio, statusText, statusType } = req.body;
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
@@ -228,9 +228,37 @@ router.put('/profile', authMiddleware, async (req, res) => {
       updates.avatar = avatar;
     }
 
+    // ── Bio and Status changes ───────────────────────────────────
+    if (bio !== undefined) {
+      updates.bio = bio.substring(0, 250);
+    }
+    if (statusText !== undefined) {
+      updates.statusText = statusText.substring(0, 80);
+    }
+    if (statusType !== undefined) {
+      if (['active', 'away', 'busy', 'dnd'].includes(statusType)) {
+        updates.statusType = statusType;
+      }
+    }
+
     // Apply non-password updates
     Object.assign(user, updates);
     await user.save();
+
+    // Broadcast presence / status update via Socket.io
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('user_presence_update', {
+        userId: user._id.toString(),
+        username: user.username,
+        avatar: user.avatar,
+        isOnline: user.isOnline,
+        lastSeen: user.lastSeen,
+        statusType: user.statusType,
+        statusText: user.statusText,
+        bio: user.bio
+      });
+    }
 
     res.status(200).json({ message: 'Profile updated successfully!', user });
   } catch (err) {

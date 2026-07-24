@@ -8,6 +8,7 @@ const compression = require('compression');
 const morgan      = require('morgan');
 const { apiLimiter, authLimiter, aiLimiter, checkNumberLimiter } = require('./middleware/rateLimit');
 const socketHandler = require('./socket/socketHandler');
+const path = require('path');
 
 const app    = express();
 const server = http.createServer(app);
@@ -41,10 +42,13 @@ app.use('/api/auth', authLimiter);
 app.use('/api/ai',   aiLimiter);
 
 // ─── Routes ───────────────────────────────────────────────────────
+app.use('/uploads',           express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth',          require('./routes/auth'));
 app.use('/api/rooms',         require('./routes/rooms'));
 app.use('/api/ai',            require('./routes/ai'));
 app.use('/api/conversations', require('./routes/conversations'));
+app.use('/api/upload',        require('./routes/upload'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Health check
 app.get('/', (req, res) => res.json({

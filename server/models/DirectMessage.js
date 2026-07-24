@@ -13,19 +13,26 @@ const DirectMessageSchema = new mongoose.Schema({
     required: true
   },
   content: {
-    type:      String,
-    required:  true,
+    type: String,
+    required:  false,
     maxlength: 5000
   },
   type: {
     type:    String,
-    enum:    ['text', 'code'],
+    enum:    ['text', 'code', 'file', 'voice'],
     default: 'text'
   },
   language: {
     type:    String,
     default: ''
   },
+  fileUrl:  { type: String },
+  fileName: { type: String },
+  fileType: { type: String },
+  fileSize: { type: Number },
+  deliveredTo: [
+    { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  ],
   readBy: [
     { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   ],

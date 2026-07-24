@@ -100,6 +100,95 @@ export const SocketProvider = ({ children }) => {
       );
     });
 
+    // Real-time user profile/presence sync
+    socket.on('user_presence_update', (update) => {
+      const { userId, isOnline, statusType, statusText, bio, avatar, username } = update;
+
+      setActiveRoom((current) => {
+        if (!current) return null;
+        
+        let updated = false;
+        
+        // Update createdBy
+        let createdBy = current.createdBy;
+        if (createdBy && (createdBy._id?.toString() || createdBy.toString()) === userId) {
+          createdBy = typeof createdBy === 'object' ? {
+            ...createdBy,
+            avatar: avatar !== undefined ? avatar : createdBy.avatar,
+            username: username !== undefined ? username : createdBy.username,
+            statusType: statusType !== undefined ? statusType : createdBy.statusType,
+            statusText: statusText !== undefined ? statusText : createdBy.statusText,
+            bio: bio !== undefined ? bio : createdBy.bio
+          } : createdBy;
+          updated = true;
+        }
+
+        // Update members
+        let members = current.members;
+        if (members && members.some((m) => (m._id?.toString() || m.toString()) === userId)) {
+          members = members.map((m) => {
+            if ((m._id?.toString() || m.toString()) === userId) {
+              return {
+                ...m,
+                avatar: avatar !== undefined ? avatar : m.avatar,
+                username: username !== undefined ? username : m.username,
+                isOnline: isOnline !== undefined ? isOnline : m.isOnline,
+                statusType: statusType !== undefined ? statusType : m.statusType,
+                statusText: statusText !== undefined ? statusText : m.statusText,
+                bio: bio !== undefined ? bio : m.bio
+              };
+            }
+            return m;
+          });
+          updated = true;
+        }
+
+        // Update admins
+        let admins = current.admins;
+        if (admins && admins.some((a) => (a._id?.toString() || a.toString()) === userId)) {
+          admins = admins.map((a) => {
+            if ((a._id?.toString() || a.toString()) === userId) {
+              return {
+                ...a,
+                avatar: avatar !== undefined ? avatar : a.avatar,
+                username: username !== undefined ? username : a.username,
+                statusType: statusType !== undefined ? statusType : a.statusType,
+                statusText: statusText !== undefined ? statusText : a.statusText,
+                bio: bio !== undefined ? bio : a.bio
+              };
+            }
+            return a;
+          });
+          updated = true;
+        }
+
+        if (updated) {
+          return { ...current, createdBy, members, admins };
+        }
+        return current;
+      });
+
+      setMessages((prev) =>
+        prev.map((msg) => {
+          const msgSenderId = msg.sender?._id?.toString() || msg.sender?.toString();
+          if (msgSenderId === userId) {
+            return {
+              ...msg,
+              sender: typeof msg.sender === 'object' ? {
+                ...msg.sender,
+                avatar: avatar !== undefined ? avatar : msg.sender.avatar,
+                username: username !== undefined ? username : msg.sender.username,
+                statusType: statusType !== undefined ? statusType : msg.sender.statusType,
+                statusText: statusText !== undefined ? statusText : msg.sender.statusText,
+                bio: bio !== undefined ? bio : msg.sender.bio
+              } : msg.sender
+            };
+          }
+          return msg;
+        })
+      );
+    });
+
     socket.on('error', ({ message }) => console.error('Socket error event:', message));
 
     return () => {
@@ -132,9 +221,19 @@ export const SocketProvider = ({ children }) => {
     setActiveRoom(null); setMessages([]); setOnlineUsers([]); setTypingUsers([]); setMoodHistory([]);
   }, [activeRoom]);
 
-  const sendMessage = useCallback(({ content, type = 'text', language = '' }) => {
-    if (!socketRef.current || !activeRoom || !content?.trim()) return;
-    socketRef.current.emit('send_message', { roomId: activeRoom._id, content: content.trim(), type, language });
+  const sendMessage = useCallback(({ content, type = 'text', language = '', fileUrl = '', fileName = '', fileType = '', fileSize = 0 }) => {
+    if (!socketRef.current || !activeRoom) return;
+    if (type === 'text' && !content?.trim()) return;
+    socketRef.current.emit('send_message', { 
+      roomId: activeRoom._id, 
+      content: content ? content.trim() : '', 
+      type, 
+      language,
+      fileUrl,
+      fileName,
+      fileType,
+      fileSize
+    });
   }, [activeRoom]);
 
   const emitTyping     = useCallback(() => { if (socketRef.current && activeRoom) socketRef.current.emit('typing',      { roomId: activeRoom._id }); }, [activeRoom]);
