@@ -41,6 +41,12 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('nextalk_user', JSON.stringify(userData));
   }, []);
 
+  const replaceToken = useCallback((jwtToken) => {
+    if (!jwtToken) return;
+    setToken(jwtToken);
+    localStorage.setItem('nextalk_token', jwtToken);
+  }, []);
+
   // ── Logout ───────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     try { await logoutUser(); } catch { /* ignore — clear anyway */ }
@@ -61,7 +67,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, setUser, updateUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, setUser, updateUser, replaceToken }}>
       {children}
     </AuthContext.Provider>
   );

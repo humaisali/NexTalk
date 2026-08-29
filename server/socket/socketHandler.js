@@ -9,31 +9,89 @@ const gemini       = require('../services/geminiService');
 // ─── In-memory presence ────────────────────────────────────────────
 const roomUsers    = new Map();   // roomId → Map<userId, userInfo>
 const socketToUser = new Map();   // socketId → userId
-const userSockets  = new Map();   // userId → socketId  (for DM delivery)
+const userSockets  = new Map();   // userId → Set<socketId> (multi-tab DM delivery)
 const roomMsgCount = new Map();   // roomId → msg count since last mood update
+const socketRateLimits = new Map();
 
 const MOOD_TRIGGER_EVERY = 8;
 
 // ─── Room presence helpers ─────────────────────────────────────────
 const getRoomUserList = (roomId) =>
-  roomUsers.has(roomId) ? Array.from(roomUsers.get(roomId).values()) : [];
+  roomUsers.has(roomId)
+    ? Array.from(roomUsers.get(roomId).values()).map((info) => ({
+        userId: info.userId,
+        username: info.username,
+        avatar: info.avatar
+      }))
+    : [];
 
 const addUserToRoom = (roomId, info) => {
   if (!roomUsers.has(roomId)) roomUsers.set(roomId, new Map());
-  roomUsers.get(roomId).set(info.userId, info);
+  const users = roomUsers.get(roomId);
+  const existing = users.get(info.userId);
+  if (existing) {
+    existing.socketIds.add(info.socketId);
+    existing.username = info.username;
+    existing.avatar = info.avatar;
+  } else {
+    users.set(info.userId, { ...info, socketIds: new Set([info.socketId]) });
+  }
 };
 
-const removeUserFromRoom = (roomId, userId) => {
-  if (roomUsers.has(roomId)) {
-    roomUsers.get(roomId).delete(userId);
-    if (roomUsers.get(roomId).size === 0) roomUsers.delete(roomId);
-  }
+// Returns true only when the user's final socket leaves the room.
+const removeUserFromRoom = (roomId, userId, socketId) => {
+  if (!roomUsers.has(roomId)) return false;
+  const users = roomUsers.get(roomId);
+  const info = users.get(userId);
+  if (!info) return false;
+  info.socketIds.delete(socketId);
+  if (info.socketIds.size > 0) return false;
+  users.delete(userId);
+  if (users.size === 0) roomUsers.delete(roomId);
+  return true;
 };
 
 const getUserActiveRooms = (userId) => {
   const rooms = [];
   roomUsers.forEach((users, roomId) => { if (users.has(userId)) rooms.push(roomId); });
   return rooms;
+};
+
+const addUserSocket = (userId, socketId) => {
+  if (!userSockets.has(userId)) userSockets.set(userId, new Set());
+  userSockets.get(userId).add(socketId);
+};
+
+// Returns the number of sockets still connected for this user.
+const removeUserSocket = (userId, socketId) => {
+  const sockets = userSockets.get(userId);
+  if (!sockets) return 0;
+  sockets.delete(socketId);
+  if (sockets.size === 0) {
+    userSockets.delete(userId);
+    return 0;
+  }
+  return sockets.size;
+};
+
+const getUserSocketIds = (userId) => Array.from(userSockets.get(userId) || []);
+
+const isValidAttachmentUrl = (url) => {
+  if (typeof url !== 'string' || url.length > 2048) return false;
+  return url.startsWith('https://') || url.startsWith('/uploads/');
+};
+
+const withinSocketRateLimit = (userId, eventName, max, windowMs) => {
+  const key = `${userId}:${eventName}`;
+  const now = Date.now();
+  const current = socketRateLimits.get(key);
+  if (!current || now - current.startedAt >= windowMs) {
+    socketRateLimits.set(key, { startedAt: now, count: 1 });
+    return true;
+  }
+  if (current.count >= max) return false;
+  current.count += 1;
+  return true;
 };
 
 // ─── Auto mood update ──────────────────────────────────────────────
@@ -63,8 +121,11 @@ const socketAuth = async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('No token'));
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user    = await User.findById(decoded.id).select('-password');
+    const user    = await User.findById(decoded.id).select('-password +tokenVersion');
     if (!user) return next(new Error('User not found'));
+    if (Number(decoded.tokenVersion ?? 0) !== Number(user.tokenVersion || 0)) {
+      return next(new Error('Session revoked'));
+    }
     socket.user = user;
     next();
   } catch {
@@ -80,21 +141,26 @@ const socketHandler = (io) => {
     const user = socket.user;
     console.log(`🔌 ${user.username} connected [${socket.id}]`);
 
-    const updatedUser = await User.findByIdAndUpdate(user._id, { isOnline: true }, { new: true });
-    if (updatedUser) {
-      io.emit('user_presence_update', {
-        userId: updatedUser._id.toString(),
-        username: updatedUser.username,
-        avatar: updatedUser.avatar,
-        isOnline: true,
-        lastSeen: updatedUser.lastSeen,
-        statusType: updatedUser.statusType,
-        statusText: updatedUser.statusText,
-        bio: updatedUser.bio
-      });
-    }
+    // Do not delay event-listener registration on a database round trip;
+    // reconnecting clients may emit their room joins immediately.
+    User.findByIdAndUpdate(user._id, { isOnline: true }, { new: true })
+      .then((updatedUser) => {
+        if (!updatedUser) return;
+        io.emit('user_presence_update', {
+          userId: updatedUser._id.toString(),
+          username: updatedUser.username,
+          avatar: updatedUser.avatar,
+          isOnline: true,
+          lastSeen: updatedUser.lastSeen,
+          statusType: updatedUser.statusType,
+          statusText: updatedUser.statusText,
+          bio: updatedUser.bio
+        });
+      })
+      .catch((err) => console.error('Presence connect update:', err.message));
     socketToUser.set(socket.id, user._id.toString());
-    userSockets.set(user._id.toString(), socket.id);   // for DM delivery
+    addUserSocket(user._id.toString(), socket.id);
+    socket.join(`user_${user._id.toString()}`);
 
     // Mark pending direct messages as delivered
     setImmediate(async () => {
@@ -138,32 +204,31 @@ const socketHandler = (io) => {
 
     // ── ROOM EVENTS ────────────────────────────────────────────────
 
-    socket.on('join_room', async ({ roomId }) => {
+    socket.on('join_room', async ({ roomId } = {}) => {
       // Verify membership before allowing socket join
-      const memberCheck = await Room.findOne({ _id: roomId, members: user._id });
-      if (!memberCheck) {
-        return socket.emit('error', { message: 'You are not a member of this room. Use an invite link to join.' });
-      }
-      // original logic continues
       try {
-        const room = await Room.findById(roomId);
-        if (!room) return socket.emit('error', { message: 'Room not found.' });
+        const room = await Room.findOne({ _id: roomId, members: user._id });
+        if (!room) {
+          return socket.emit('error', { message: 'You are not a member of this room. Use an invite link to join.' });
+        }
 
         const current = Array.from(socket.rooms).filter((r) => r !== socket.id);
         for (const r of current) {
-          if (!r.startsWith('dm_')) {          // don't leave DM socket rooms
+          if (!r.startsWith('dm_') && !r.startsWith('user_')) {
             socket.leave(r);
-            removeUserFromRoom(r, user._id.toString());
-            socket.to(r).emit('user_left',   { userId: user._id, username: user.username });
+            const fullyLeft = removeUserFromRoom(r, user._id.toString(), socket.id);
+            if (fullyLeft) socket.to(r).emit('user_left', { userId: user._id, username: user.username });
             io.to(r).emit('online_users',    { users: getRoomUserList(r) });
           }
         }
 
         socket.join(roomId);
         addUserToRoom(roomId, { userId: user._id.toString(), username: user.username, avatar: user.avatar, socketId: socket.id });
-        await Room.findByIdAndUpdate(roomId, { $addToSet: { members: user._id } });
 
-        socket.to(roomId).emit('user_joined', { userId: user._id, username: user.username, avatar: user.avatar });
+        const roomPresence = roomUsers.get(roomId)?.get(user._id.toString());
+        if (roomPresence?.socketIds.size === 1) {
+          socket.to(roomId).emit('user_joined', { userId: user._id, username: user.username, avatar: user.avatar });
+        }
         io.to(roomId).emit('online_users',    { users: getRoomUserList(roomId) });
         socket.emit('mood_updated', { mood: room.mood || 'neutral', score: room.moodScore || 50, timestamp: new Date().toISOString() });
 
@@ -174,20 +239,35 @@ const socketHandler = (io) => {
       }
     });
 
-    socket.on('leave_room', ({ roomId }) => {
+    socket.on('leave_room', ({ roomId } = {}) => {
+      if (!roomId || !socket.rooms.has(roomId)) return;
       socket.leave(roomId);
-      removeUserFromRoom(roomId, user._id.toString());
-      socket.to(roomId).emit('user_left',   { userId: user._id, username: user.username });
+      const fullyLeft = removeUserFromRoom(roomId, user._id.toString(), socket.id);
+      if (fullyLeft) socket.to(roomId).emit('user_left', { userId: user._id, username: user.username });
       io.to(roomId).emit('online_users',    { users: getRoomUserList(roomId) });
     });
 
-    socket.on('send_message', async ({ roomId, content, type = 'text', language = '', fileUrl = '', fileName = '', fileType = '', fileSize = 0 }) => {
+    socket.on('send_message', async ({ roomId, content, type = 'text', language = '', fileUrl = '', fileName = '', fileType = '', fileSize = 0 } = {}) => {
       try {
-        if (type === 'text' && !content?.trim()) return;
+        if (!withinSocketRateLimit(user._id.toString(), 'send_message', 60, 60_000)) {
+          return socket.emit('error', { message: 'Message rate limit reached. Please slow down.' });
+        }
+        const validTypes = ['text', 'code', 'file', 'voice'];
+        if (!validTypes.includes(type)) return socket.emit('error', { message: 'Invalid message type.' });
+        if (['text', 'code'].includes(type) && !content?.trim()) return;
+        if (content && content.trim().length > 5000) {
+          return socket.emit('error', { message: 'Message is too long.' });
+        }
+        if (['file', 'voice'].includes(type) && !isValidAttachmentUrl(fileUrl)) {
+          return socket.emit('error', { message: 'A valid attachment URL is required.' });
+        }
+        if (!Number.isFinite(Number(fileSize)) || Number(fileSize) < 0 || Number(fileSize) > 10 * 1024 * 1024) {
+          return socket.emit('error', { message: 'Invalid attachment size.' });
+        }
 
-        // Check if only admins can post
-        const room = await Room.findById(roomId);
-        if (!room) return socket.emit('error', { message: 'Room not found.' });
+        // Authorization must be checked on every write, not only join_room.
+        const room = await Room.findOne({ _id: roomId, members: user._id });
+        if (!room) return socket.emit('error', { message: 'You are not a member of this room.' });
 
         const isUserAdmin = room.admins.some(a => a.toString() === user._id.toString()) || 
                             room.createdBy.toString() === user._id.toString();
@@ -201,11 +281,11 @@ const socketHandler = (io) => {
           sender: user._id,
           content: content ? content.trim() : '',
           type,
-          language,
+          language: String(language || '').slice(0, 50),
           fileUrl,
-          fileName,
-          fileType,
-          fileSize,
+          fileName: String(fileName || '').slice(0, 255),
+          fileType: String(fileType || '').slice(0, 150),
+          fileSize: Number(fileSize),
           readBy: [user._id]
         });
 
@@ -239,9 +319,20 @@ const socketHandler = (io) => {
       }
     });
 
-    socket.on('typing',      ({ roomId }) => socket.to(roomId).emit('user_typing',         { username: user.username }));
-    socket.on('stop_typing', ({ roomId }) => socket.to(roomId).emit('user_stopped_typing', { username: user.username }));
-    socket.on('request_mood_update', ({ roomId }) => setImmediate(() => triggerMoodUpdate(io, roomId)));
+    socket.on('typing', ({ roomId } = {}) => {
+      if (roomId && socket.rooms.has(roomId)) socket.to(roomId).emit('user_typing', { username: user.username });
+    });
+    socket.on('stop_typing', ({ roomId } = {}) => {
+      if (roomId && socket.rooms.has(roomId)) socket.to(roomId).emit('user_stopped_typing', { username: user.username });
+    });
+    socket.on('request_mood_update', async ({ roomId } = {}) => {
+      if (!withinSocketRateLimit(user._id.toString(), 'request_mood_update', 4, 60_000)) {
+        return socket.emit('error', { message: 'Mood update rate limit reached.' });
+      }
+      const isAuthorized = await Room.exists({ _id: roomId, members: user._id }).catch(() => null);
+      if (!isAuthorized) return socket.emit('error', { message: 'You are not a member of this room.' });
+      setImmediate(() => triggerMoodUpdate(io, roomId));
+    });
 
     // ── DIRECT MESSAGE EVENTS ──────────────────────────────────────
 
@@ -250,7 +341,7 @@ const socketHandler = (io) => {
      * Room key: "dm_<conversationId>"
      * Both participants must join this room to receive real-time DMs.
      */
-    socket.on('join_dm', async ({ conversationId }) => {
+    socket.on('join_dm', async ({ conversationId } = {}) => {
       try {
         // Verify the user is a participant
         const conversation = await Conversation.findOne({
@@ -292,7 +383,7 @@ const socketHandler = (io) => {
     /**
      * leave_dm — leave the socket room for a private conversation.
      */
-    socket.on('leave_dm', ({ conversationId }) => {
+    socket.on('leave_dm', ({ conversationId } = {}) => {
       socket.leave(`dm_${conversationId}`);
     });
 
@@ -301,9 +392,23 @@ const socketHandler = (io) => {
      * Saves to DB, updates conversation lastMessage + unread,
      * then delivers to both users via the dm_ socket room.
      */
-    socket.on('send_dm', async ({ conversationId, content, type = 'text', language = '', fileUrl = '', fileName = '', fileType = '', fileSize = 0 }) => {
+    socket.on('send_dm', async ({ conversationId, content, type = 'text', language = '', fileUrl = '', fileName = '', fileType = '', fileSize = 0 } = {}) => {
       try {
-        if (type === 'text' && !content?.trim()) return;
+        if (!withinSocketRateLimit(user._id.toString(), 'send_dm', 60, 60_000)) {
+          return socket.emit('error', { message: 'Message rate limit reached. Please slow down.' });
+        }
+        const validTypes = ['text', 'code', 'file', 'voice'];
+        if (!validTypes.includes(type)) return socket.emit('error', { message: 'Invalid message type.' });
+        if (['text', 'code'].includes(type) && !content?.trim()) return;
+        if (content && content.trim().length > 5000) {
+          return socket.emit('error', { message: 'Message is too long.' });
+        }
+        if (['file', 'voice'].includes(type) && !isValidAttachmentUrl(fileUrl)) {
+          return socket.emit('error', { message: 'A valid attachment URL is required.' });
+        }
+        if (!Number.isFinite(Number(fileSize)) || Number(fileSize) < 0 || Number(fileSize) > 10 * 1024 * 1024) {
+          return socket.emit('error', { message: 'Invalid attachment size.' });
+        }
 
         // Security: verify sender is a participant
         const conversation = await Conversation.findOne({
@@ -318,12 +423,12 @@ const socketHandler = (io) => {
 
         const dmRoom = `dm_${conversationId}`;
         const clients = io.sockets.adapter.rooms.get(dmRoom);
-        const otherSocketId = userSockets.get(otherId);
+        const otherSocketIds = getUserSocketIds(otherId);
 
-        let isRecipientInRoom = false;
-        if (clients && otherSocketId && clients.has(otherSocketId)) {
-          isRecipientInRoom = true;
-        }
+        const isRecipientInRoom = Boolean(
+          clients && otherSocketIds.some((socketId) => clients.has(socketId))
+        );
+        const isRecipientOnline = otherSocketIds.length > 0;
 
         const readBy = [user._id];
         const deliveredTo = [user._id];
@@ -331,7 +436,7 @@ const socketHandler = (io) => {
         if (isRecipientInRoom) {
           readBy.push(otherId);
           deliveredTo.push(otherId);
-        } else if (otherSocketId) {
+        } else if (isRecipientOnline) {
           deliveredTo.push(otherId);
         }
 
@@ -341,11 +446,11 @@ const socketHandler = (io) => {
           sender:       user._id,
           content:      content ? content.trim() : '',
           type,
-          language,
+          language:     String(language || '').slice(0, 50),
           fileUrl,
-          fileName,
-          fileType,
-          fileSize,
+          fileName:     String(fileName || '').slice(0, 255),
+          fileType:     String(fileType || '').slice(0, 150),
+          fileSize:     Number(fileSize),
           readBy,
           deliveredTo
         });
@@ -373,19 +478,20 @@ const socketHandler = (io) => {
 
         // If the other user is online but NOT in the dm_ room,
         // deliver a notification to their personal socket
-        if (otherSocketId && !isRecipientInRoom) {
-          const otherSocket = io.sockets.sockets.get(otherSocketId);
-          if (otherSocket) {
+        if (isRecipientOnline && !isRecipientInRoom) {
+          for (const otherSocketId of otherSocketIds) {
+            const otherSocket = io.sockets.sockets.get(otherSocketId);
+            if (!otherSocket) continue;
             otherSocket.emit('dm_notification', {
               conversationId,
               sender:  { _id: user._id, username: user.username, avatar: user.avatar },
               content: type === 'text' ? (content ? content.trim() : '') : `📎 ${fileName || 'file'}`,
               type
             });
-            // Let the sender know it was delivered
-            io.to(dmRoom).emit('dm_delivered', { conversationId, messageId: dm._id, userId: otherId });
           }
-        } else if (!otherSocketId) {
+          // Let the sender know it was delivered to at least one active session.
+          io.to(dmRoom).emit('dm_delivered', { conversationId, messageId: dm._id, userId: otherId });
+        } else if (!isRecipientOnline) {
           // Send push notification since other user is offline
           const { sendPushNotification } = require('../utils/pushHelper');
           setImmediate(async () => {
@@ -411,11 +517,17 @@ const socketHandler = (io) => {
     /**
      * dm_typing / dm_stop_typing — typing indicators for DM
      */
-    socket.on('dm_typing',      ({ conversationId }) => {
-      socket.to(`dm_${conversationId}`).emit('dm_user_typing',         { username: user.username, conversationId });
+    socket.on('dm_typing',      ({ conversationId } = {}) => {
+      const roomKey = `dm_${conversationId}`;
+      if (conversationId && socket.rooms.has(roomKey)) {
+        socket.to(roomKey).emit('dm_user_typing', { username: user.username, conversationId });
+      }
     });
-    socket.on('dm_stop_typing', ({ conversationId }) => {
-      socket.to(`dm_${conversationId}`).emit('dm_user_stopped_typing', { username: user.username, conversationId });
+    socket.on('dm_stop_typing', ({ conversationId } = {}) => {
+      const roomKey = `dm_${conversationId}`;
+      if (conversationId && socket.rooms.has(roomKey)) {
+        socket.to(roomKey).emit('dm_user_stopped_typing', { username: user.username, conversationId });
+      }
     });
 
     // ── DISCONNECT ─────────────────────────────────────────────────
@@ -424,13 +536,19 @@ const socketHandler = (io) => {
 
       const activeRooms = getUserActiveRooms(user._id.toString());
       for (const roomId of activeRooms) {
-        removeUserFromRoom(roomId, user._id.toString());
-        io.to(roomId).emit('user_left',    { userId: user._id, username: user.username });
+        const fullyLeft = removeUserFromRoom(roomId, user._id.toString(), socket.id);
+        if (fullyLeft) io.to(roomId).emit('user_left', { userId: user._id, username: user.username });
         io.to(roomId).emit('online_users', { users: getRoomUserList(roomId) });
       }
 
       socketToUser.delete(socket.id);
-      userSockets.delete(user._id.toString());
+      const remainingSockets = removeUserSocket(user._id.toString(), socket.id);
+
+      if (remainingSockets > 0) return;
+
+      for (const key of socketRateLimits.keys()) {
+        if (key.startsWith(`${user._id.toString()}:`)) socketRateLimits.delete(key);
+      }
 
       const disconnectedUser = await User.findByIdAndUpdate(user._id, { isOnline: false, lastSeen: new Date() }, { new: true });
       if (disconnectedUser) {
@@ -450,3 +568,15 @@ const socketHandler = (io) => {
 };
 
 module.exports = socketHandler;
+module.exports._test = {
+  roomUsers,
+  userSockets,
+  socketRateLimits,
+  getRoomUserList,
+  addUserToRoom,
+  removeUserFromRoom,
+  addUserSocket,
+  removeUserSocket,
+  getUserSocketIds,
+  withinSocketRateLimit
+};

@@ -4,8 +4,12 @@ const jwt     = require('jsonwebtoken');
 const User    = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 
-const generateToken = (userId) =>
-  jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+const generateToken = (user) =>
+  jwt.sign(
+    { id: user._id, tokenVersion: Number(user.tokenVersion || 0) },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
 
 // ─────────────────────────────────────────────
 // GET /api/auth/check-number?number=+1001234567
@@ -78,7 +82,7 @@ router.post('/register', async (req, res) => {
       nexTalkNumber: cleanedNumber
     });
 
-    const token = generateToken(user._id);
+    const token = generateToken(user);
     res.status(201).json({ message: 'Account created!', token, user });
   } catch (err) {
     console.error('Register error:', err);
@@ -95,7 +99,7 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' });
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+tokenVersion');
     if (!user) return res.status(401).json({ message: 'Invalid credentials.' });
 
     const match = await user.comparePassword(password);
@@ -105,7 +109,7 @@ router.post('/login', async (req, res) => {
     user.lastSeen = new Date();
     await user.save();
 
-    const token = generateToken(user._id);
+    const token = generateToken(user);
     res.status(200).json({ message: 'Logged in!', token, user });
   } catch (err) {
     console.error('Login error:', err);
@@ -141,7 +145,12 @@ router.put('/language', authMiddleware, async (req, res) => {
 // ─────────────────────────────────────────────
 router.post('/logout', authMiddleware, async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.user._id, { isOnline: false, lastSeen: new Date() });
+    await User.findByIdAndUpdate(req.user._id, {
+      $inc: { tokenVersion: 1 },
+      $set: { isOnline: false, lastSeen: new Date() }
+    });
+    const io = req.app.get('io');
+    if (io) io.in(`user_${req.user._id.toString()}`).disconnectSockets(true);
     res.status(200).json({ message: 'Logged out.' });
   } catch (err) {
     console.error('Logout error:', err);
@@ -185,7 +194,7 @@ module.exports = router;
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
     const { username, currentPassword, newPassword, avatar, bio, statusText, statusType } = req.body;
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select('+tokenVersion');
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
     const updates = {};
@@ -213,6 +222,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
       }
       // Setting password triggers the pre-save bcrypt hook
       user.password = newPassword;
+      user.tokenVersion = Number(user.tokenVersion || 0) + 1;
     }
 
     // ── Avatar change ────────────────────────────────────────────
@@ -258,9 +268,13 @@ router.put('/profile', authMiddleware, async (req, res) => {
         statusText: user.statusText,
         bio: user.bio
       });
+      if (newPassword) {
+        io.in(`user_${user._id.toString()}`).disconnectSockets(true);
+      }
     }
 
-    res.status(200).json({ message: 'Profile updated successfully!', user });
+    const token = newPassword ? generateToken(user) : undefined;
+    res.status(200).json({ message: 'Profile updated successfully!', user, token });
   } catch (err) {
     console.error('PUT /profile error:', err);
     res.status(500).json({ message: 'Server error updating profile.' });

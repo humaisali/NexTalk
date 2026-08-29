@@ -34,6 +34,7 @@ const UserSchema = new mongoose.Schema({
       }
     }
   ],
+  tokenVersion: { type: Number, default: 0, select: false },
   createdAt: { type: Date,   default: Date.now }
 });
 
@@ -53,6 +54,7 @@ UserSchema.methods.comparePassword = async function (plain) {
 UserSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
+  delete obj.tokenVersion;
   return obj;
 };
 

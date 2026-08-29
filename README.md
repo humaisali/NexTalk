@@ -10,7 +10,7 @@ A full-stack, production-ready chat application with 6 Gemini AI features built 
 
 | Feature | Description |
 |---------|-------------|
-| 🔐 JWT Auth | Register, login, token refresh, secure logout |
+| 🔐 JWT Auth | Register, login, revocable sessions, secure logout |
 | 💬 Real-Time Chat | Socket.io rooms, live messages, typing indicators |
 | ✨ Tone Analyzer | Rates your message tone before sending |
 | ⚡ Smart Replies | 3 AI-suggested quick reply chips |
@@ -54,6 +54,11 @@ MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/nextalk
 JWT_SECRET=<run: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))">
 GEMINI_API_KEY=<from https://aistudio.google.com/app/apikey>
 CLIENT_ORIGIN=http://localhost:5173
+CLOUDINARY_CLOUD_NAME=<required for production attachments>
+CLOUDINARY_API_KEY=<required for production attachments>
+CLOUDINARY_API_SECRET=<required for production attachments>
+VAPID_PUBLIC_KEY=<persistent web-push public key>
+VAPID_PRIVATE_KEY=<persistent web-push private key>
 ```
 
 Edit `client/.env`:
@@ -71,6 +76,12 @@ npm run dev        # Runs both client + server concurrently
 
 - Frontend: http://localhost:5173  
 - Backend:  http://localhost:5000
+
+### Verification
+
+```bash
+npm run check      # Server security/state tests + production client build
+```
 
 ---
 
@@ -93,6 +104,11 @@ npm run dev        # Runs both client + server concurrently
 | `JWT_SECRET` | Long random string |
 | `GEMINI_API_KEY` | Your Gemini API key |
 | `CLIENT_ORIGIN` | Your Vercel URL (added after frontend deploy) |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name for durable attachments |
+| `CLOUDINARY_API_KEY` | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Cloudinary API secret |
+| `VAPID_PUBLIC_KEY` | Persistent web-push public key |
+| `VAPID_PRIVATE_KEY` | Persistent web-push private key |
 
 8. Click **Deploy** — copy the Render URL (e.g. `https://nextalk-server.onrender.com`)
 

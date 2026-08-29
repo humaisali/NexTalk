@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getConversations, getDirectMessages } from '../services/api';
 import { useSocket } from '../context/SocketContext';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * useConversations — manages the state of all private conversations.
@@ -21,6 +22,8 @@ import { useSocket } from '../context/SocketContext';
  */
 const useConversations = () => {
   const { socket } = useSocket();
+  const { user } = useAuth();
+  const currentUserId = user?._id?.toString();
 
   const [conversations,      setConversations]      = useState([]);
   const [loading,            setLoading]            = useState(true);
@@ -38,14 +41,14 @@ const useConversations = () => {
       setLoading(true);
       const { data } = await getConversations();
       setConversations(data.conversations || []);
-      // Calculate total unread
-      // (server sets unreadCount as a Map, client gets it as plain object)
+      // The server stores unread counts for both participants. Only the
+      // current user's value belongs in this user's badge.
       const unread = (data.conversations || []).reduce((sum, c) => {
         const counts = c.unreadCount || {};
-        const vals   = typeof counts.get === 'function'
-          ? Array.from(counts.values())
-          : Object.values(counts);
-        return sum + vals.reduce((a, b) => a + (b || 0), 0);
+        const ownCount = typeof counts.get === 'function'
+          ? counts.get(currentUserId)
+          : counts[currentUserId];
+        return sum + (Number(ownCount) || 0);
       }, 0);
       setTotalUnread(unread);
     } catch (err) {
@@ -53,16 +56,21 @@ const useConversations = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => { refetch(); }, [refetch]);
 
   // ── Socket events for DMs ──────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
+    const listeners = [];
+    const on = (eventName, handler) => {
+      socket.on(eventName, handler);
+      listeners.push([eventName, handler]);
+    };
 
     // Incoming DM — add to messages if it's for active conversation
-    socket.on('receive_dm', ({ conversationId, message }) => {
+    on('receive_dm', ({ conversationId, message }) => {
       const msgId = message._id?.toString();
       if (seenDmIds.current.has(msgId)) return;
       seenDmIds.current.add(msgId);
@@ -88,7 +96,7 @@ const useConversations = () => {
     });
 
     // Notification for a DM in a conversation NOT currently open
-    socket.on('dm_notification', ({ conversationId, sender, content, type }) => {
+    on('dm_notification', ({ conversationId, sender, content, type }) => {
       setTotalUnread((n) => n + 1);
       setConversations((prev) =>
         prev.map((c) =>
@@ -100,7 +108,7 @@ const useConversations = () => {
     });
 
     // Message delivered real-time tracking
-    socket.on('dm_delivered', ({ conversationId, messageId, userId }) => {
+    on('dm_delivered', ({ conversationId, messageId, userId }) => {
       if (activeConversation?._id?.toString() === conversationId) {
         setDmMessages((prev) =>
           prev.map((msg) => {
@@ -117,7 +125,7 @@ const useConversations = () => {
     });
 
     // Message delivered batch tracking (offline messages catch-up)
-    socket.on('dm_delivered_batch', ({ conversationId, messageIds, userId }) => {
+    on('dm_delivered_batch', ({ conversationId, messageIds, userId }) => {
       if (activeConversation?._id?.toString() === conversationId) {
         const idSet = new Set(messageIds.map(id => id.toString()));
         setDmMessages((prev) =>
@@ -135,7 +143,7 @@ const useConversations = () => {
     });
 
     // Message read real-time tracking
-    socket.on('dm_read', ({ conversationId, readerId }) => {
+    on('dm_read', ({ conversationId, readerId }) => {
       if (activeConversation?._id?.toString() === conversationId) {
         setDmMessages((prev) =>
           prev.map((msg) => {
@@ -156,11 +164,11 @@ const useConversations = () => {
     });
 
     // Typing indicators
-    socket.on('dm_user_typing',         ({ username }) => setDmTypingUser(username));
-    socket.on('dm_user_stopped_typing', ()             => setDmTypingUser(null));
+    on('dm_user_typing',         ({ username }) => setDmTypingUser(username));
+    on('dm_user_stopped_typing', ()             => setDmTypingUser(null));
 
     // Dynamic profile sync and presence updates
-    socket.on('user_presence_update', (update) => {
+    const handlePresenceUpdate = (update) => {
       const { userId, isOnline, statusType, statusText, bio, avatar, username } = update;
       
       setConversations((prev) =>
@@ -231,17 +239,22 @@ const useConversations = () => {
           return msg;
         })
       );
-    });
+    };
+
+    // Socket.IO rooms are server-side state and are lost on disconnect.
+    // Restore the currently open DM whenever this socket reconnects.
+    const handleConnect = () => {
+      if (activeConversation?._id) {
+        socket.emit('join_dm', { conversationId: activeConversation._id });
+      }
+    };
+
+    on('user_presence_update', handlePresenceUpdate);
+    on('connect', handleConnect);
+    if (socket.connected && activeConversation?._id) handleConnect();
 
     return () => {
-      socket.off('receive_dm');
-      socket.off('dm_notification');
-      socket.off('dm_delivered');
-      socket.off('dm_delivered_batch');
-      socket.off('dm_read');
-      socket.off('dm_user_typing');
-      socket.off('dm_user_stopped_typing');
-      socket.off('user_presence_update');
+      listeners.forEach(([eventName, handler]) => socket.off(eventName, handler));
     };
   }, [socket, activeConversation]);
 
@@ -253,6 +266,10 @@ const useConversations = () => {
     }
 
     seenDmIds.current.clear();
+    const counts = conversation.unreadCount || {};
+    const unreadForConversation = typeof counts.get === 'function'
+      ? counts.get(currentUserId)
+      : counts[currentUserId];
     setActiveConversation(conversation);
     setDmMessages([]);
     setDmTypingUser(null);
@@ -275,11 +292,11 @@ const useConversations = () => {
             : c
         )
       );
-      setTotalUnread((n) => Math.max(0, n - 1)); // approximate reset
+      setTotalUnread((n) => Math.max(0, n - (Number(unreadForConversation) || 0)));
     } catch (err) {
       console.error('openConversation history:', err);
     }
-  }, [socket, activeConversation]);
+  }, [socket, activeConversation, currentUserId]);
 
   // ── Close conversation ─────────────────────────────────────────
   const closeConversation = useCallback(() => {

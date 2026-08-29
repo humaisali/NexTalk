@@ -271,6 +271,12 @@ router.delete('/:id/members/:userId', async (req, res) => {
     room.admins  = room.admins.filter((a)  => a.toString() !== req.params.userId);
     await room.save();
 
+    // Force the removed user's active sockets out of every room. Their
+    // automatic reconnect can no longer rejoin this room because membership
+    // is checked during join_room.
+    const io = req.app.get('io');
+    if (io) io.in(`user_${req.params.userId}`).disconnectSockets(true);
+
     res.status(200).json({ message: 'Member removed.' });
   } catch (err) {
     console.error('DELETE /rooms/:id/members/:userId:', err);

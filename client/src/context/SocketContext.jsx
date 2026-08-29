@@ -7,6 +7,7 @@ const SocketContext = createContext(null);
 export const SocketProvider = ({ children }) => {
   const { token } = useAuth();
   const socketRef                         = useRef(null);
+  const activeRoomRef                     = useRef(null);
   const seenIds                           = useRef(new Set());     // dedup guard
   const [isConnected,  setIsConnected]    = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
@@ -34,6 +35,9 @@ export const SocketProvider = ({ children }) => {
       console.log('🔌 Socket connected:', socket.id);
       setIsConnected(true);
       setIsReconnecting(false);
+      if (activeRoomRef.current?._id) {
+        socket.emit('join_room', { roomId: activeRoomRef.current._id });
+      }
     });
 
     socket.on('disconnect', (reason) => {
@@ -206,6 +210,7 @@ export const SocketProvider = ({ children }) => {
     // Pre-seed seen IDs with loaded history to prevent duplication
     previousMessages.forEach((m) => seenIds.current.add(m._id?.toString()));
     setActiveRoom(room);
+    activeRoomRef.current = room;
     setMessages(previousMessages);
     setOnlineUsers([]);
     setTypingUsers([]);
@@ -217,6 +222,7 @@ export const SocketProvider = ({ children }) => {
   const leaveRoom = useCallback(() => {
     if (!socketRef.current || !activeRoom) return;
     socketRef.current.emit('leave_room', { roomId: activeRoom._id });
+    activeRoomRef.current = null;
     seenIds.current.clear();
     setActiveRoom(null); setMessages([]); setOnlineUsers([]); setTypingUsers([]); setMoodHistory([]);
   }, [activeRoom]);

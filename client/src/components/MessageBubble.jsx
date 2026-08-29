@@ -1,7 +1,9 @@
-import CodeBlock from './CodeBlock';
+import { lazy, Suspense, useState } from 'react';
 import { Globe, FileText, Download } from 'lucide-react';
 import VoicePlayer from './VoicePlayer';
 import ImageModal from './ImageModal';
+
+const CodeBlock = lazy(() => import('./CodeBlock'));
 const TONE_CONFIG = {
   aggressive: {
     label: 'Aggressive',
@@ -28,8 +30,8 @@ const TONE_CONFIG = {
 
 const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining, translation, isTranslating, onTranslate }) => {
   const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const [showImageModal, setShowImageModal] = React.useState(false);
-  const [selectedImg, setSelectedImg] = React.useState('');
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImg, setSelectedImg] = useState('');
   const tone = msg.tone ? TONE_CONFIG[msg.tone] : null;
 
   const getFullUrl = (url) => {
@@ -99,13 +101,15 @@ const MessageBubble = ({ msg, isOwn, onExplainCode, isExplaining, translation, i
 
         {/* Bubble or CodeBlock or Media Attachment */}
         {msg.type === 'code' ? (
-          <CodeBlock
-            content={msg.content}
-            language={msg.language || 'javascript'}
-            explanation={msg.codeExplanation || ''}
-            onExplain={(code, lang) => onExplainCode?.(msg._id, code, lang)}
-            isExplaining={isExplaining === msg._id}
-          />
+          <Suspense fallback={<div className="w-72 h-24 rounded-2xl bg-gray-900 animate-pulse" />}>
+            <CodeBlock
+              content={msg.content}
+              language={msg.language || 'javascript'}
+              explanation={msg.codeExplanation || ''}
+              onExplain={(code, lang) => onExplainCode?.(msg._id, code, lang)}
+              isExplaining={isExplaining === msg._id}
+            />
+          </Suspense>
         ) : msg.type === 'voice' ? (
           <VoicePlayer src={msg.fileUrl} isOwn={isOwn} />
         ) : msg.type === 'file' && msg.fileType?.startsWith('image/') ? (

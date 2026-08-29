@@ -7,7 +7,7 @@ import { X, Lock, Camera, Check, Eye, EyeOff, Save, Trash2, Hash, User } from 'l
 const pwRules = (pw) => ({ length: pw.length >= 6, letter: /[a-zA-Z]/.test(pw), number: /\d/.test(pw) });
 
 const EditProfileModal = ({ onClose }) => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, replaceToken } = useAuth();
   const toast                = useToast();
 
   const [avatarPreview, setAvatarPreview] = useState(user?.avatar || '');
@@ -86,7 +86,9 @@ const EditProfileModal = ({ onClose }) => {
     if (newPw !== confirmPw) { toast.error('Passwords do not match.'); return; }
     setSaving(true);
     try {
-      await updateProfile({ currentPassword: currentPw, newPassword: newPw });
+      const { data } = await updateProfile({ currentPassword: currentPw, newPassword: newPw });
+      if (data.token) replaceToken(data.token);
+      if (data.user) updateUser(data.user);
       toast.success('Password changed!');
       setCurrentPw(''); setNewPw(''); setConfirmPw(''); setPwTouched(false);
     } catch (err) {

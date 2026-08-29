@@ -15,9 +15,13 @@ const authMiddleware = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Attach user to request (exclude password)
-    const user = await User.findById(decoded.id);
+    const user = await User.findById(decoded.id).select('+tokenVersion');
     if (!user) {
       return res.status(401).json({ message: 'User not found. Token invalid.' });
+    }
+    const tokenVersion = Number(decoded.tokenVersion ?? 0);
+    if (tokenVersion !== Number(user.tokenVersion || 0)) {
+      return res.status(401).json({ message: 'Session has been revoked. Please log in again.' });
     }
 
     req.user = user;

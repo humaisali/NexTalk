@@ -120,7 +120,10 @@ const Chat = () => {
     summarize(textMsgs);
   };
 
-  const handleRoomLeft    = () => { if (activeRoom) removeRoomFromList(activeRoom._id); };
+  const handleRoomLeft    = () => {
+    if (activeRoom) removeRoomFromList(activeRoom._id);
+    leaveRoom();
+  };
   const handleRoomUpdated = (r) => updateRoomInList(r);
 
   const recentMessages = messages.filter((m) => m.type !== 'system').slice(-5);

@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { SyntaxHighlighter, vscDarkPlus } from './SyntaxHighlighter';
 import { Copy, Check, Cpu, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
 const CodeBlock = ({ content, language = 'javascript', explanation = '', onExplain, isExplaining }) => {

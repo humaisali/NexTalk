@@ -1,5 +1,6 @@
 const express  = require('express');
 const router   = express.Router();
+const mongoose = require('mongoose');
 const authMiddleware = require('../middleware/auth');
 const gemini   = require('../services/geminiService');
 const Message  = require('../models/Message');
@@ -77,12 +78,35 @@ router.post('/summarize', async (req, res) => {
 router.post('/explain-code', async (req, res) => {
   try {
     const { code, language = 'javascript', messageId } = req.body;
-    if (!code?.trim()) return res.status(400).json({ message: 'code is required.' });
+    if (!messageId && !code?.trim()) return res.status(400).json({ message: 'code is required.' });
 
-    const result = await gemini.explainCode(code.trim(), language);
+    let codeToExplain = code?.trim() || '';
+    let languageToExplain = language;
+    let persistedMessage = null;
 
-    if (messageId && result.explanation) {
-      await Message.findByIdAndUpdate(messageId, { codeExplanation: result.explanation })
+    if (messageId) {
+      if (!mongoose.isValidObjectId(messageId)) {
+        return res.status(400).json({ message: 'Invalid message ID.' });
+      }
+      persistedMessage = await Message.findById(messageId);
+      if (!persistedMessage) return res.status(404).json({ message: 'Message not found.' });
+
+      const isMember = await Room.exists({ _id: persistedMessage.room, members: req.user._id });
+      if (!isMember) return res.status(403).json({ message: 'You are not authorized to update this message.' });
+      if (persistedMessage.type !== 'code') {
+        return res.status(400).json({ message: 'Only code messages can have code explanations.' });
+      }
+
+      // Persisted explanations must describe the stored message, not
+      // client-supplied content that may differ from it.
+      codeToExplain = persistedMessage.content;
+      languageToExplain = persistedMessage.language || language;
+    }
+
+    const result = await gemini.explainCode(codeToExplain, languageToExplain);
+
+    if (persistedMessage && result.explanation) {
+      await Message.findByIdAndUpdate(persistedMessage._id, { codeExplanation: result.explanation })
         .catch((e) => console.warn('Could not persist explanation:', e.message));
     }
 
@@ -100,10 +124,25 @@ router.post('/explain-code', async (req, res) => {
 router.post('/mood', async (req, res) => {
   try {
     const { messages, roomId } = req.body;
-    if (!Array.isArray(messages) || !messages.length)
+    if (!roomId && (!Array.isArray(messages) || !messages.length))
       return res.status(400).json({ message: 'messages[] is required.' });
 
-    const result = await gemini.detectMood(messages);
+    let messagesToAnalyze = messages;
+    if (roomId) {
+      if (!mongoose.isValidObjectId(roomId)) {
+        return res.status(400).json({ message: 'Invalid room ID.' });
+      }
+      const room = await Room.findOne({ _id: roomId, members: req.user._id }).select('_id');
+      if (!room) return res.status(403).json({ message: 'You are not a member of this room.' });
+
+      messagesToAnalyze = await Message.find({ room: roomId })
+        .populate('sender', 'username')
+        .sort({ createdAt: -1 })
+        .limit(20);
+      messagesToAnalyze.reverse();
+    }
+
+    const result = await gemini.detectMood(messagesToAnalyze);
 
     if (roomId) {
       await Room.findByIdAndUpdate(roomId, { mood: result.mood, moodScore: result.score })

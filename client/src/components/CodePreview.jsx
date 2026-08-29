@@ -1,5 +1,4 @@
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { SyntaxHighlighter, vscDarkPlus } from './SyntaxHighlighter';
 import { EyeOff, Send } from 'lucide-react';
 
 const CodePreview = ({ code, language, onSend, onHide }) => {

@@ -16,6 +16,16 @@ services:
         sync: false
       - key: CLIENT_ORIGIN
         sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
     autoDeploy: true
     plan: free
     healthCheckPath: /

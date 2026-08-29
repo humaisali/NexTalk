@@ -1,12 +1,13 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { lazy, Suspense, useState, useRef, useCallback, useEffect } from 'react';
 import { useSocket }    from '../context/SocketContext';
 import { useAuth }      from '../context/AuthContext';
 import { uploadFile }   from '../services/api';
 import ToneAnalyzer     from './ToneAnalyzer';
-import CodePreview      from './CodePreview';
 import useTyping        from '../hooks/useTyping';
 import useCodeShare     from '../hooks/useCodeShare';
 import { Send, Code, X, Zap, Eye, Paperclip, Mic, Loader2, Square, Trash2, Check, Shield } from 'lucide-react';
+
+const CodePreview = lazy(() => import('./CodePreview'));
 
 const MAX_CHARS = 4000;
 
@@ -262,7 +263,9 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
 
       {/* Code preview */}
       {isCodeMode && showPreview && input.trim() && (
-        <CodePreview code={input} language={codeLanguage} onSend={() => doSend(input)} onHide={togglePreview} />
+        <Suspense fallback={<div className="h-32 mb-3 rounded-xl bg-gray-900 animate-pulse" />}>
+          <CodePreview code={input} language={codeLanguage} onSend={() => doSend(input)} onHide={togglePreview} />
+        </Suspense>
       )}
 
       {/* Smart replies */}

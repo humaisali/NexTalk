@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "concurrently \"cd client && npm run dev\" \"cd server && npm run dev\"",
     "build": "cd client && npm run build",
-    "start": "cd server && npm start"
+    "start": "cd server && npm start",
+    "test": "cd server && npm test",
+    "check": "npm test && npm run build"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
