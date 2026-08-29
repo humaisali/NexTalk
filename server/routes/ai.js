@@ -12,13 +12,12 @@ router.use(authMiddleware);
 // GET /api/ai/health
 // ─────────────────────────────────────────────
 router.get('/health', async (req, res) => {
-  try {
-    const result = await gemini.analyzeTone('Hello, how are you?');
-    res.status(200).json({ status: 'ok', result });
-  } catch (err) {
-    console.error('AI health check failed:', err);
-    res.status(500).json({ status: 'error', message: err.message });
-  }
+  const result = gemini.getProviderStatus();
+  const providers = Object.values(result.providers);
+  const configuredCount = providers.filter((provider) => provider.configured).length;
+  const readyCount = providers.filter((provider) => provider.status === 'ready').length;
+  const status = readyCount === 2 ? 'ok' : readyCount >= 1 ? 'degraded' : 'error';
+  res.status(readyCount ? 200 : 503).json({ status, configuredCount, readyCount, ...result });
 });
 
 // ─────────────────────────────────────────────

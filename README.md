@@ -2,7 +2,7 @@
 
 > Built by **Humais Ali** — SkyTech Developers | UET Mardan
 
-A full-stack, production-ready chat application with 6 Gemini AI features built in 7 days.
+A full-stack, production-ready chat application with 6 AI features powered by Gemini and Groq.
 
 ---
 
@@ -22,6 +22,8 @@ A full-stack, production-ready chat application with 6 Gemini AI features built 
 ---
 
 ## 🚀 Local Setup
+
+Requires Node.js 20 or newer.
 
 ### 1. Clone & install
 
@@ -53,6 +55,9 @@ NODE_ENV=development
 MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/nextalk
 JWT_SECRET=<run: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))">
 GEMINI_API_KEY=<from https://aistudio.google.com/app/apikey>
+GROQ_API_KEY=<from https://console.groq.com/keys>
+GEMINI_MODEL=gemini-3.6-flash
+GROQ_MODEL=qwen/qwen3.6-27b
 CLIENT_ORIGIN=http://localhost:5173
 CLOUDINARY_CLOUD_NAME=<required for production attachments>
 CLOUDINARY_API_KEY=<required for production attachments>
@@ -60,6 +65,8 @@ CLOUDINARY_API_SECRET=<required for production attachments>
 VAPID_PUBLIC_KEY=<persistent web-push public key>
 VAPID_PRIVATE_KEY=<persistent web-push private key>
 ```
+
+AI requests alternate between Gemini and Groq. If one provider is rate-limited or unavailable, NexTalk falls back to the other and temporarily cools down the failing provider.
 
 Edit `client/.env`:
 
@@ -103,6 +110,9 @@ npm run check      # Server security/state tests + production client build
 | `MONGODB_URI` | Your MongoDB Atlas URI |
 | `JWT_SECRET` | Long random string |
 | `GEMINI_API_KEY` | Your Gemini API key |
+| `GROQ_API_KEY` | Your Groq API key |
+| `GEMINI_MODEL` | `gemini-3.6-flash` |
+| `GROQ_MODEL` | `qwen/qwen3.6-27b` |
 | `CLIENT_ORIGIN` | Your Vercel URL (added after frontend deploy) |
 | `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name for durable attachments |
 | `CLOUDINARY_API_KEY` | Cloudinary API key |

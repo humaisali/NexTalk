@@ -14,6 +14,12 @@ services:
         generateValue: true
       - key: GEMINI_API_KEY
         sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: GROQ_MODEL
+        value: qwen/qwen3.6-27b
       - key: CLIENT_ORIGIN
         sync: false
       - key: CLOUDINARY_CLOUD_NAME

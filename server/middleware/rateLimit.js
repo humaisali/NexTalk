@@ -33,7 +33,7 @@ const checkNumberLimiter = rateLimit({
   message: { message: 'Too many number checks. Please wait a moment.' }
 });
 
-// AI routes — 30/min (Gemini calls are expensive)
+// AI routes — 30/min (protects both provider quotas)
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,

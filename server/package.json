@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "test": "node --test tests/authMiddleware.test.js tests/uploadValidation.test.js tests/socketState.test.js"
+    "test": "node --test tests/aiProviderRouter.test.js tests/authMiddleware.test.js tests/uploadValidation.test.js tests/socketState.test.js"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
+    "@google/genai": "^2.19.0",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.10.0",
     "compression": "^1.7.4",
@@ -27,5 +27,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

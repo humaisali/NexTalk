@@ -1,22 +1,29 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 
-// ─── Client ────────────────────────────────────────────────────────
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+const GROQ_MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.6-27b';
+const PROVIDER_TIMEOUT_MS = 20_000;
+const RATE_LIMIT_COOLDOWN_MS = 60_000;
+const ERROR_COOLDOWN_MS = 5 * 60_000;
+
 let genAI = null;
-const getModel = () => {
-  if (!genAI) genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  return genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      temperature:     0.3,
-      topP:            0.8,
-      maxOutputTokens: 1024,
-    }
-  });
+let providerCursor = 0;
+
+const providerState = {
+  gemini: { successes: 0, failures: 0, cooldownUntil: 0 },
+  groq:   { successes: 0, failures: 0, cooldownUntil: 0 }
+};
+const providerOverrides = { gemini: null, groq: null };
+
+const getGeminiClient = () => {
+  if (!process.env.GEMINI_API_KEY) throw new Error('Gemini API key is not configured.');
+  if (!genAI) genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  return genAI;
 };
 
 // ─── Robust JSON extractor ─────────────────────────────────────────
 const extractJSON = (text) => {
-  if (!text) throw new Error('Empty response from Gemini');
+  if (!text) throw new Error('Empty response from AI provider');
   try { return JSON.parse(text.trim()); } catch {}
   const stripped = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
   try { return JSON.parse(stripped); } catch {}
@@ -24,26 +31,152 @@ const extractJSON = (text) => {
   if (match) {
     try { return JSON.parse(match[0]); } catch {}
   }
-  console.error('Gemini raw (unparseable):', text.substring(0, 300));
-  throw new Error('Could not parse JSON from Gemini response');
+  console.error('AI response was not valid JSON:', text.substring(0, 300));
+  throw new Error('Could not parse JSON from AI response');
 };
 
-// ─── Retry wrapper ─────────────────────────────────────────────────
-const callGemini = async (prompt, retries = 2) => {
-  let lastErr;
-  for (let i = 0; i <= retries; i++) {
+const callGemini = async (prompt) => {
+  const result = await getGeminiClient().models.generateContent({
+    model: GEMINI_MODEL,
+    contents: prompt,
+    config: {
+      temperature: 0.3,
+      topP: 0.8,
+      maxOutputTokens: 1024,
+      responseMimeType: 'application/json'
+    }
+  });
+  const text = result?.text;
+  if (!text) throw new Error('Gemini returned empty text.');
+  return text;
+};
+
+const parseRetryAfter = (value) => {
+  if (!value) return 0;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : 0;
+};
+
+const callGroq = async (prompt) => {
+  if (!process.env.GROQ_API_KEY) throw new Error('Groq API key is not configured.');
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  const body = {
+    model: GROQ_MODEL,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+    top_p: 0.8,
+    max_completion_tokens: 1024,
+    response_format: { type: 'json_object' }
+  };
+  if (GROQ_MODEL.startsWith('qwen/')) body.reasoning_effort = 'none';
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload?.error?.message || `Groq request failed with status ${response.status}.`);
+      error.status = response.status;
+      error.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
+      throw error;
+    }
+
+    const text = payload?.choices?.[0]?.message?.content;
+    if (!text) throw new Error('Groq returned empty text.');
+    return text;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const configuredProviders = () => [
+  process.env.GEMINI_API_KEY ? 'gemini' : null,
+  process.env.GROQ_API_KEY ? 'groq' : null
+].filter(Boolean);
+
+const getErrorStatus = (error) => Number(
+  error?.status || error?.statusCode || error?.response?.status || 0
+);
+
+const markProviderFailure = (provider, error) => {
+  const state = providerState[provider];
+  const status = getErrorStatus(error);
+  const retryable = [408, 409, 429, 498, 500, 502, 503, 504].includes(status) ||
+    /quota|rate.?limit|resource exhausted|overload|temporar|timeout|aborted/i.test(error?.message || '');
+  const requestedCooldown = Number(error?.retryAfterMs) || 0;
+  const cooldownMs = requestedCooldown || (retryable ? RATE_LIMIT_COOLDOWN_MS : ERROR_COOLDOWN_MS);
+  state.failures += 1;
+  state.cooldownUntil = Date.now() + cooldownMs;
+  console.warn(`AI provider ${provider} failed; cooling down for ${Math.ceil(cooldownMs / 1000)}s:`, error?.message);
+};
+
+const callProvider = (provider, prompt) => {
+  if (providerOverrides[provider]) return providerOverrides[provider](prompt);
+  return provider === 'gemini' ? callGemini(prompt) : callGroq(prompt);
+};
+
+// Normal traffic alternates providers. If the chosen provider fails, the
+// other provider handles the same request and the failing provider rests.
+const callAI = async (prompt) => {
+  const providers = configuredProviders();
+  if (!providers.length) throw new Error('No AI provider is configured.');
+
+  const start = providerCursor % providers.length;
+  providerCursor = (providerCursor + 1) % Number.MAX_SAFE_INTEGER;
+  const ordered = [...providers.slice(start), ...providers.slice(0, start)];
+  const available = ordered.filter((provider) => providerState[provider].cooldownUntil <= Date.now());
+  if (!available.length) throw new Error('AI providers are temporarily cooling down. Please retry shortly.');
+
+  let lastError;
+  for (const provider of available) {
     try {
-      const result = await getModel().generateContent(prompt);
-      const text   = result?.response?.text?.();
-      if (!text) throw new Error('Gemini returned empty text');
+      const text = await callProvider(provider, prompt);
+      providerState[provider].successes += 1;
+      providerState[provider].cooldownUntil = 0;
       return text;
-    } catch (err) {
-      lastErr = err;
-      console.warn(`Gemini attempt ${i + 1} failed:`, err.message);
-      if (i < retries) await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+    } catch (error) {
+      lastError = error;
+      markProviderFailure(provider, error);
     }
   }
-  throw lastErr;
+
+  const error = new Error('AI providers are temporarily unavailable. Please try again shortly.');
+  error.cause = lastError;
+  throw error;
+};
+
+const getProviderStatus = () => {
+  const now = Date.now();
+  const describe = (provider, configured, model) => ({
+    configured,
+    model,
+    status: !configured ? 'not_configured' : providerState[provider].cooldownUntil > now ? 'cooldown' : 'ready',
+    cooldownUntil: providerState[provider].cooldownUntil > now
+      ? new Date(providerState[provider].cooldownUntil).toISOString()
+      : null,
+    successes: providerState[provider].successes,
+    failures: providerState[provider].failures
+  });
+
+  return {
+    strategy: 'round-robin-with-fallback',
+    providers: {
+      gemini: describe('gemini', Boolean(process.env.GEMINI_API_KEY), GEMINI_MODEL),
+      groq: describe('groq', Boolean(process.env.GROQ_API_KEY), GROQ_MODEL)
+    }
+  };
 };
 
 // ─── Format messages for prompts ──────────────────────────────────
@@ -76,7 +209,7 @@ Respond ONLY with this exact JSON (no extra text, no markdown):
 If tone is aggressive or neutral, put a friendlier rewrite in "suggestion".
 If tone is friendly, leave "suggestion" as empty string.`;
 
-  const raw    = await callGemini(prompt);
+  const raw    = await callAI(prompt);
   const result = extractJSON(raw);
   return {
     tone:       ['aggressive','neutral','friendly'].includes(result.tone) ? result.tone : 'neutral',
@@ -109,7 +242,7 @@ Rules:
 Respond ONLY with this exact JSON (no extra text):
 {"replies":["reply one","reply two","reply three"]}`;
 
-  const raw    = await callGemini(prompt);
+  const raw    = await callAI(prompt);
   const result = extractJSON(raw);
   const replies = Array.isArray(result.replies) ? result.replies.filter(Boolean).slice(0, 3) : [];
   return { replies };
@@ -140,7 +273,7 @@ Instructions:
 Respond ONLY with this exact JSON (no markdown, no extra text):
 {"summary":"• point one\\n• point two\\n• point three","keyTopics":["Topic One","Topic Two"]}`;
 
-  const raw    = await callGemini(prompt);
+  const raw    = await callAI(prompt);
   const result = extractJSON(raw);
   return {
     summary:      typeof result.summary === 'string' ? result.summary : '',
@@ -170,7 +303,7 @@ ${truncated}
 Respond ONLY with this exact JSON (no markdown):
 {"explanation":"Your explanation here."}`;
 
-  const raw    = await callGemini(prompt);
+  const raw    = await callAI(prompt);
   const result = extractJSON(raw);
   return { explanation: result.explanation || '' };
 };
@@ -205,7 +338,7 @@ Score is 0-100 for how strongly the mood is felt.
 Respond ONLY with this exact JSON:
 {"mood":"neutral","score":50}`;
 
-  const raw    = await callGemini(prompt);
+  const raw    = await callAI(prompt);
   const result = extractJSON(raw);
   const valid  = ['positive','negative','neutral','tense','excited'];
   return {
@@ -231,9 +364,37 @@ Respond exactly like this:
 {"translatedText":"[your translation here]"}
 `;
 
-  const raw    = await callGemini(prompt);
+  const raw    = await callAI(prompt);
   const result = extractJSON(raw);
   return { translatedText: result.translatedText || text };
 };
 
-module.exports = { analyzeTone, getSmartReplies, summarizeRoom, explainCode, detectMood, translateText };
+module.exports = {
+  analyzeTone,
+  getSmartReplies,
+  summarizeRoom,
+  explainCode,
+  detectMood,
+  translateText,
+  getProviderStatus,
+  _test: {
+    callAI,
+    callGroq,
+    configuredProviders,
+    providerState,
+    setProviderOverride(provider, caller) {
+      if (!Object.hasOwn(providerOverrides, provider)) throw new Error(`Unknown provider: ${provider}`);
+      providerOverrides[provider] = caller;
+    },
+    reset() {
+      providerCursor = 0;
+      providerOverrides.gemini = null;
+      providerOverrides.groq = null;
+      Object.values(providerState).forEach((state) => {
+        state.successes = 0;
+        state.failures = 0;
+        state.cooldownUntil = 0;
+      });
+    }
+  }
+};

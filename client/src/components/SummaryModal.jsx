@@ -81,7 +81,7 @@ const SummaryModal = ({ isOpen, onClose, summary, keyTopics = [], messageCount =
               </div>
               <div className="text-center">
                 <p className="text-sm font-bold text-gray-800">Reading the conversation…</p>
-                <p className="text-xs mt-1 font-medium text-gray-500">Gemini AI is catching you up</p>
+                <p className="text-xs mt-1 font-medium text-gray-500">AI is catching you up</p>
               </div>
               <div className="flex gap-2">
                 {[0, 200, 400].map((d) => (
@@ -116,7 +116,7 @@ const SummaryModal = ({ isOpen, onClose, summary, keyTopics = [], messageCount =
         <div className="px-6 py-4 flex items-center justify-between gap-3 flex-shrink-0 border-t border-gray-100 bg-gray-50">
           <p className="text-xs font-medium flex items-center gap-1.5 text-gray-400">
             <span className="w-2 h-2 rounded-full bg-blue-400 inline-block shadow-sm" />
-            Powered by Google Gemini
+            Powered by Gemini and Groq
           </p>
           <div className="flex gap-2">
             {bullets.length > 0 && !isLoading && (
