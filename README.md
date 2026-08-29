@@ -172,4 +172,4 @@ nextalk/
 **Humais Ali**  
 SkyTech Developers | UET Mardan  
 GitHub: [github.com/humaisali](https://github.com/humaisali)  
-Portfolio: [humaissoftneer.vercel.app](https://humaissoftneer.vercel.app)
+Portfolio: [humaissoftneer.vercel.app](https://engineerhumais.vercel.app/)
