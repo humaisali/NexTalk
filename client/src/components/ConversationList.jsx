@@ -1,6 +1,6 @@
 import { MessageCircle } from 'lucide-react';
 
-const ConversationList = ({ conversations = [], loading, activeConvId, currentUserId, onSelect }) => {
+const ConversationList = ({ conversations = [], loading, activeConvId, currentUserId, onSelect, emptyMessage = 'No direct messages yet' }) => {
   const getOther = (conv) =>
     conv.participants?.find((p) => p._id?.toString() !== currentUserId?.toString());
 
@@ -30,9 +30,9 @@ const ConversationList = ({ conversations = [], loading, activeConvId, currentUs
 
   if (conversations.length === 0) {
     return (
-      <div className="text-center py-10 px-4">
-        <MessageCircle size={24} className="mx-auto text-gray-300 dark:text-nt-muted mb-2" />
-        <p className="text-sm text-gray-500 dark:text-nt-muted font-medium">No messages yet</p>
+      <div className="rounded-xl px-4 py-8 text-center text-[var(--text-muted)]">
+        <MessageCircle size={24} className="mx-auto mb-2 opacity-50" aria-hidden="true" />
+        <p className="text-sm font-medium">{emptyMessage}</p>
       </div>
     );
   }
@@ -57,35 +57,38 @@ const ConversationList = ({ conversations = [], loading, activeConvId, currentUs
         const statusColor = statusColors[other?.statusType || 'active'] || 'bg-green-500';
 
         return (
-          <button key={conv._id} onClick={() => onSelect(conv)}
-            className={`chat-list-item ${isActive ? 'active bg-white dark:bg-nt-bg3/40 shadow-sm' : ''}`}>
+          <button key={conv._id} type="button" onClick={() => onSelect(conv)} aria-current={isActive ? 'page' : undefined}
+            className={`chat-list-item ${isActive ? 'active' : ''}`}>
             <div className="relative">
-              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 dark:bg-nt-bg3 flex items-center justify-center text-gray-600 dark:text-nt-text font-bold text-lg">
+              <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[var(--surface-muted)] text-base font-bold text-[var(--text-secondary)]">
                 {hasImgOther
-                  ? <img src={other.avatar} alt="" className="w-full h-full object-cover" />
+                  ? <img src={other.avatar} alt="" className="h-full w-full object-cover" />
                   : other?.username?.[0]?.toUpperCase() || '?'}
               </div>
               {other?.isOnline && (
-                <div className={`absolute bottom-0 right-0 w-3 h-3 ${statusColor} border-2 border-white dark:border-nt-bg1 rounded-full`} />
+                <>
+                  <span className="sr-only">{other?.statusType || 'Online'}</span>
+                  <div className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[var(--surface)] ${statusColor}`} aria-hidden="true" />
+                </>
               )}
             </div>
             <div className="flex-1 min-w-0 pt-1">
               <div className="flex items-baseline justify-between mb-0.5">
-                <span className={`text-sm truncate ${isActive ? 'font-bold text-gray-900 dark:text-white' : 'font-semibold text-gray-800 dark:text-nt-text'}`}>
+                <span className="truncate text-sm font-semibold text-[var(--text-primary)]">
                   {other?.username || 'Unknown'}
                 </span>
                 {lastTime && (
-                  <span className={`text-xs flex-shrink-0 ml-2 ${unread > 0 ? 'text-blue-600 dark:text-[#60D4C8] font-bold' : 'text-gray-400 dark:text-nt-muted'}`}>
+                  <span className={`ml-2 flex-shrink-0 text-xs ${unread > 0 ? 'font-bold text-[var(--brand)]' : 'text-[var(--text-muted)]'}`}>
                     {formatTime(lastTime)}
                   </span>
                 )}
               </div>
               <div className="flex items-center justify-between">
-                <p className={`text-xs truncate ${unread > 0 ? 'font-bold text-gray-800 dark:text-white' : 'text-gray-500 dark:text-nt-muted'}`}>
+                <p className={`truncate text-xs ${unread > 0 ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
                   {lastContent || <span className="italic opacity-60">No messages yet</span>}
                 </p>
                 {unread > 0 && (
-                  <span className="ml-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
+                  <span aria-label={`${unread} unread messages`} className="ml-2 min-w-5 flex-shrink-0 rounded-full bg-[var(--brand)] px-1.5 py-0.5 text-center text-[10px] font-bold text-white">
                     {unread > 99 ? '99+' : unread}
                   </span>
                 )}

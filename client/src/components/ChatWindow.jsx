@@ -51,11 +51,14 @@ const ChatWindow = ({ onExplainCode, explainLoading, translations, translateLoad
   });
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden relative bg-gray-50/50">
+    <div className="relative flex flex-1 flex-col overflow-hidden bg-[var(--surface-subtle)]">
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-6 py-6"
+        role="log"
+        aria-live="polite"
+        aria-label={`${activeRoom.name} messages`}
+        className="flex-1 overflow-y-auto px-3 py-5 sm:px-6 sm:py-6"
       >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-5 text-center select-none animate-fade-in">
@@ -126,11 +129,13 @@ const ChatWindow = ({ onExplainCode, explainLoading, translations, translateLoad
       {/* Scroll to bottom button */}
       {showScrollBtn && (
         <button
+          type="button"
           onClick={() => {
             bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
             setShowScrollBtn(false);
           }}
-          className="absolute bottom-4 right-5 w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-105 bg-white border border-gray-200 text-gray-600"
+          className="absolute bottom-4 right-4 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] shadow-lg transition-colors hover:bg-[var(--surface-muted)] sm:right-5"
+          aria-label="Scroll to latest message"
         >
           <ArrowDown size={16} />
         </button>
