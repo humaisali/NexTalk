@@ -1,113 +1,136 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, Hash, Loader2, X } from 'lucide-react';
 import { checkNumber } from '../services/api';
-import { Check, X, Loader, Hash } from 'lucide-react';
 
-const NexTalkNumberPicker = ({ value, onChange, onStatus, lightMode = false }) => {
-  const [suffix,  setSuffix]  = useState(value?.replace('+100', '') || '');
-  const [status,  setStatus]  = useState(null);
+const statusStyles = {
+  available: 'text-emerald-600 dark:text-emerald-400',
+  taken: 'text-rose-600 dark:text-rose-400',
+  invalid: 'text-amber-700 dark:text-amber-300',
+  warning: 'text-amber-700 dark:text-amber-300',
+  checking: 'text-[var(--text-muted)]',
+};
+
+const NexTalkNumberPicker = ({ value, onChange, onStatus }) => {
+  const [suffix, setSuffix] = useState(value?.replace('+100', '') || '');
+  const [status, setStatus] = useState(null);
   const [message, setMessage] = useState('');
-  const debounceRef           = useRef(null);
-  const mounted               = useRef(true);
+  const debounceRef = useRef(null);
+  const mounted = useRef(true);
+  const onChangeRef = useRef(onChange);
+  const onStatusRef = useRef(onStatus);
 
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; clearTimeout(debounceRef.current); }; }, []);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onStatusRef.current = onStatus;
+  }, [onChange, onStatus]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
     const digits = suffix.replace(/\D/g, '').slice(0, 7);
+
     if (digits.length === 0) {
-      setStatus(null); setMessage('');
-      onStatus?.({ valid: false, available: false }); onChange?.(''); return;
+      setStatus(null);
+      setMessage('');
+      onStatusRef.current?.({ valid: false, available: false });
+      onChangeRef.current?.('');
+      return;
     }
+
     if (digits.length < 7) {
-      setStatus('invalid'); setMessage(`${digits.length}/7 digits`);
-      onStatus?.({ valid: false, available: false }); onChange?.(''); return;
+      setStatus('invalid');
+      setMessage(`${digits.length} of 7 digits`);
+      onStatusRef.current?.({ valid: false, available: false });
+      onChangeRef.current?.('');
+      return;
     }
+
     const fullNumber = `+100${digits}`;
-    setStatus('checking'); setMessage('Checking…');
-    debounceRef.current = setTimeout(async () => {
+    const applyAvailability = (available) => {
+      if (!mounted.current) return;
+      setStatus(available ? 'available' : 'taken');
+      setMessage(available ? 'Available' : 'Already taken');
+      onStatusRef.current?.({ valid: available, available });
+      onChangeRef.current?.(available ? fullNumber : '');
+    };
+
+    const checkAvailability = async () => {
       try {
         const { data } = await checkNumber(fullNumber);
+        applyAvailability(data.available);
+      } catch (error) {
         if (!mounted.current) return;
-        if (data.available) {
-          setStatus('available'); setMessage('Available');
-          onStatus?.({ valid: true, available: true }); onChange?.(fullNumber);
-        } else {
-          setStatus('taken'); setMessage('Already taken');
-          onStatus?.({ valid: false, available: false }); onChange?.('');
+        if (error?.response?.status === 429) {
+          setStatus('warning');
+          setMessage('Checking again shortly…');
+          debounceRef.current = setTimeout(checkAvailability, 3000);
+          return;
         }
-      } catch (err) {
-        if (!mounted.current) return;
-        if (err?.response?.status === 429) {
-          setStatus('warning'); setMessage('Please wait…');
-          debounceRef.current = setTimeout(async () => {
-            try {
-              const { data } = await checkNumber(fullNumber);
-              if (!mounted.current) return;
-              if (data.available) { setStatus('available'); setMessage('Available'); onStatus?.({ valid: true, available: true }); onChange?.(fullNumber); }
-              else { setStatus('taken'); setMessage('Already taken'); onStatus?.({ valid: false, available: false }); onChange?.(''); }
-            } catch { if (mounted.current) { setStatus('invalid'); setMessage('Try again'); onStatus?.({ valid: false, available: false }); onChange?.(''); } }
-          }, 3000);
-        } else {
-          setStatus('invalid'); setMessage('Try again');
-          onStatus?.({ valid: false, available: false }); onChange?.('');
-        }
+        setStatus('invalid');
+        setMessage('Could not check. Try again.');
+        onStatusRef.current?.({ valid: false, available: false });
+        onChangeRef.current?.('');
       }
-    }, 800);
+    };
+
+    setStatus('checking');
+    setMessage('Checking availability…');
+    debounceRef.current = setTimeout(checkAvailability, 800);
+
+    return () => clearTimeout(debounceRef.current);
   }, [suffix]);
 
   const digits = suffix.replace(/\D/g, '');
-
-  const textColor    = lightMode ? '#013E37' : '#FFEFB2';
-  const mutedColor   = lightMode ? 'rgba(1,62,55,0.4)' : 'rgba(255,239,178,0.4)';
-  const borderColor  = lightMode ? '#013E37' : '#025A50';
-  const bgColor      = lightMode ? 'rgba(1,62,55,0.05)' : 'rgba(255,239,178,0.05)';
-  const prefixBg     = lightMode ? 'rgba(1,62,55,0.08)' : 'rgba(255,239,178,0.08)';
-
-  const statusColor  = { available: '#4ADE80', taken: '#F87171', invalid: '#FCD34D', warning: '#FCD34D', checking: mutedColor }[status] || mutedColor;
+  const statusTextClass = statusStyles[status] || 'text-[var(--text-muted)]';
 
   return (
     <div>
-      <label style={{ color: mutedColor }} className="block text-xs font-semibold mb-2 uppercase tracking-widest">
-        NexTalk Number
+      <label htmlFor="nextalk-number" className="mb-1.5 block text-sm font-semibold text-[var(--text-primary)]">
+        NexTalk number
       </label>
-      <p style={{ color: mutedColor, fontSize: '11px' }} className="mb-2.5 leading-relaxed">
-        Choose a unique 7-digit ID. Others use this to message you privately.
+      <p id="nextalk-number-help" className="mb-2.5 text-xs leading-5 text-[var(--text-muted)]">
+        Choose a unique 7-digit ID people can use to find you.
       </p>
 
-      <div className="flex items-center rounded-lg overflow-hidden border transition-all"
-           style={{ borderColor, background: bgColor }}>
-        {/* Prefix */}
-        <div className="flex items-center gap-1.5 px-3 py-2.5 border-r flex-shrink-0"
-             style={{ background: prefixBg, borderColor }}>
-          <Hash size={12} style={{ color: status === 'available' ? '#4ADE80' : textColor }} />
-          <span className="text-sm font-bold tracking-widest" style={{ color: textColor }}>+100</span>
+      <div className="flex min-h-12 items-stretch overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface-subtle)] transition focus-within:border-[var(--brand)] focus-within:ring-4 focus-within:ring-[var(--focus-ring)]">
+        <div className="flex flex-shrink-0 items-center gap-1.5 border-r border-[var(--border)] bg-[var(--surface-muted)] px-3 text-[var(--text-secondary)]">
+          <Hash size={15} aria-hidden="true" />
+          <span className="font-mono text-sm font-semibold tracking-wide">+100</span>
         </div>
-
-        {/* Input */}
         <input
-          type="text" inputMode="numeric" value={digits}
-          onChange={(e) => setSuffix(e.target.value.replace(/\D/g,'').slice(0,7))}
-          placeholder="1234567" maxLength={7}
-          style={{ color: textColor, caretColor: '#FFEFB2' }}
-          className="flex-1 bg-transparent text-sm px-3 py-2.5 outline-none font-mono tracking-widest placeholder-opacity-30"
+          id="nextalk-number"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={digits}
+          onChange={(event) => setSuffix(event.target.value.replace(/\D/g, '').slice(0, 7))}
+          placeholder="1234567"
+          maxLength={7}
+          aria-describedby="nextalk-number-help nextalk-number-status"
+          aria-invalid={status === 'taken' || (status === 'invalid' && digits.length === 7)}
+          className="min-w-0 flex-1 bg-transparent px-3 py-2.5 font-mono text-sm tracking-[0.14em] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
-
-        {/* Status icon */}
-        <div className="px-3 flex-shrink-0">
-          {status === 'checking' || status === 'warning'
-            ? <Loader size={14} className="animate-spin" style={{ color: mutedColor }} />
-            : status === 'available' ? <Check size={14} style={{ color: '#4ADE80' }} />
-            : (status === 'taken' || status === 'invalid') ? <X size={14} style={{ color: '#F87171' }} />
-            : null
-          }
+        <div className={`flex w-11 flex-shrink-0 items-center justify-center ${statusTextClass}`} aria-hidden="true">
+          {(status === 'checking' || status === 'warning') && <Loader2 size={17} className="animate-spin" />}
+          {status === 'available' && <Check size={17} />}
+          {(status === 'taken' || status === 'invalid') && <X size={17} />}
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-1.5 px-0.5">
-        <span className="font-mono text-xs" style={{ color: mutedColor }}>
+      <div className="mt-2 flex min-h-5 items-center justify-between gap-3 px-0.5 text-xs">
+        <span className="font-mono text-[var(--text-muted)]">
           {digits.length === 7 ? `+100 ${digits}` : ''}
         </span>
-        {message && <span className="text-xs" style={{ color: statusColor }}>{message}</span>}
+        <span id="nextalk-number-status" role="status" aria-live="polite" className={statusTextClass}>
+          {message}
+        </span>
       </div>
     </div>
   );
