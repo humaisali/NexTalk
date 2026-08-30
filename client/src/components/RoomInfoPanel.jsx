@@ -1,9 +1,6 @@
-import { useSocket } from '../context/SocketContext';
 import { X, Users, Clock, Lock, Globe } from 'lucide-react';
 
 const RoomInfoPanel = ({ room, conversation, onClose, currentUserId }) => {
-  const { onlineUsers } = useSocket();
-
   const other = conversation?.participants?.find(
     (p) => p._id?.toString() !== currentUserId
   );
@@ -23,15 +20,15 @@ const RoomInfoPanel = ({ room, conversation, onClose, currentUserId }) => {
   };
 
   return (
-    <div className="w-72 flex-shrink-0 flex flex-col bg-white dark:bg-nt-bg1 border-l border-gray-100 dark:border-nt-border overflow-hidden">
+    <aside aria-label={isRoom ? 'Group details' : 'Conversation details'} className="flex h-full w-full flex-shrink-0 flex-col overflow-hidden border-l border-[var(--border)] bg-[var(--surface)]">
 
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-nt-border flex-shrink-0">
-        <h3 className="text-sm font-bold text-gray-800 dark:text-nt-text">
-          {isRoom ? 'Group Info' : 'About'}
-        </h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-nt-text transition-colors">
-          <X size={16} />
+      <div className="flex min-h-16 flex-shrink-0 items-center justify-between border-b border-[var(--border)] px-5">
+        <h2 className="text-sm font-bold text-[var(--text-primary)]">
+          {isRoom ? 'Group details' : 'Conversation details'}
+        </h2>
+        <button type="button" onClick={onClose} className="icon-button" aria-label="Close details">
+          <X size={18} />
         </button>
       </div>
 
@@ -231,7 +228,7 @@ const RoomInfoPanel = ({ room, conversation, onClose, currentUserId }) => {
           </div>
         )}
       </div>
-    </div>
+    </aside>
   );
 };
 

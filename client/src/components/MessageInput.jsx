@@ -247,7 +247,7 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
   // Broadcast Restricted UI
   if (isBroadcastRestricted) {
     return (
-      <div className="flex-shrink-0 px-6 py-4 bg-gray-50 dark:bg-nt-bg1 border-t border-gray-100 dark:border-nt-border relative z-10 text-center">
+      <div className="relative z-10 flex-shrink-0 border-t border-[var(--border)] bg-[var(--surface)] px-3 py-4 text-center sm:px-6">
         <div className="py-3 px-4 rounded-xl bg-amber-50 dark:bg-nt-bg3/30 border border-amber-100 dark:border-nt-border/40 text-amber-800 dark:text-nt-warning text-sm font-semibold inline-flex items-center gap-2">
           <Shield size={16} />
           Only admins can post messages in this room.
@@ -259,7 +259,7 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
   const canSend = input.trim() && !isOverLimit && isConnected;
 
   return (
-    <div className="flex-shrink-0 px-6 py-4 bg-white dark:bg-nt-bg1 border-t border-gray-100 dark:border-nt-border relative z-10">
+    <div className="relative z-10 flex-shrink-0 border-t border-[var(--border)] bg-[var(--surface)] px-3 py-3 sm:px-6 sm:py-4">
 
       {/* Code preview */}
       {isCodeMode && showPreview && input.trim() && (
@@ -328,14 +328,14 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
 
       {/* Error */}
       {sendError && (
-        <p className="text-xs px-1 mb-2 flex items-center gap-1.5 text-red-500">
+        <p role="alert" className="mb-2 flex items-center gap-1.5 px-1 text-xs text-red-500">
           <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
           {sendError}
         </p>
       )}
 
       {/* Main input box */}
-      <div className={`rounded-xl border bg-gray-50 dark:bg-nt-bg2 transition-all ${isFocused ? 'ring-2 ring-blue-100 dark:ring-[#60D4C8]/10 border-blue-300 dark:border-[#60D4C8]' : 'border-gray-200 dark:border-nt-border'} ${isOverLimit ? 'border-red-300 ring-red-100' : ''}`}>
+      <div className={`rounded-xl border bg-[var(--surface-subtle)] transition-all ${isFocused ? 'border-[var(--brand)] ring-4 ring-[var(--focus-ring)]' : 'border-[var(--border)]'} ${isOverLimit ? 'border-red-400 ring-red-100' : ''}`}>
         
         {/* Hidden inputs */}
         <input ref={fileInputRef} type="file" onChange={handleFileAttach} className="hidden" />
@@ -349,16 +349,18 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
             </div>
             <div className="flex items-center gap-2">
               <button 
+                type="button"
                 onClick={() => stopRecording(false)} 
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-                title="Cancel Recording"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/20"
+                aria-label="Cancel recording"
               >
                 <Trash2 size={16} />
               </button>
               <button 
+                type="button"
                 onClick={() => stopRecording(true)} 
-                className="w-8 h-8 rounded-lg flex items-center justify-center bg-green-500 text-white hover:bg-green-600 active:scale-95 transition-all shadow-sm"
-                title="Send Recording"
+                className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm transition-colors hover:bg-emerald-700"
+                aria-label="Send recording"
               >
                 <Check size={16} />
               </button>
@@ -383,7 +385,8 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
                 onFocus={handleFocus}
                 onBlur={() => setIsFocused(false)}
                 placeholder={isCodeMode ? `Paste your ${codeLanguage} code here…` : `Message ${activeRoom.name}…`}
-                className="w-full bg-transparent text-sm resize-none outline-none leading-relaxed min-h-[24px] max-h-36 text-gray-800 dark:text-nt-text placeholder-gray-400 dark:placeholder-nt-faint"
+                aria-label={`Message ${activeRoom.name}`}
+                className="min-h-[24px] max-h-36 w-full resize-none bg-transparent text-sm leading-relaxed text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
                 style={{
                   color: isOverLimit ? '#ef4444' : 'inherit',
                   fontFamily: isCodeMode ? 'JetBrains Mono, monospace' : 'inherit',
@@ -396,27 +399,31 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
               <div className="flex items-center gap-1">
                 {/* Code mode button */}
                 <button
+                  type="button"
                   onClick={toggleCodeMode}
-                  title="Code Mode"
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${isCodeMode ? 'bg-blue-100 dark:bg-nt-bg3 text-blue-600 dark:text-nt-teal' : 'text-gray-400 dark:text-nt-muted hover:bg-gray-100 dark:hover:bg-nt-bg3 hover:text-gray-600 dark:hover:text-nt-text'}`}
+                  aria-label="Toggle code mode"
+                  aria-pressed={isCodeMode}
+                  className={`flex h-11 w-11 items-center justify-center rounded-lg transition-colors ${isCodeMode ? 'bg-[var(--brand-soft)] text-[var(--brand)]' : 'text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]'}`}
                 >
                   <Code size={16} />
                 </button>
 
                 {/* File Attachment button */}
                 <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  title="Attach File"
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 dark:text-nt-muted hover:bg-gray-100 dark:hover:bg-nt-bg3 hover:text-gray-600 dark:hover:text-nt-text transition-colors"
+                  aria-label="Attach file"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
                 >
                   <Paperclip size={16} />
                 </button>
 
                 {/* Voice Record button */}
                 <button
+                  type="button"
                   onClick={startRecording}
-                  title="Record Voice Message"
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 dark:text-nt-muted hover:bg-gray-100 dark:hover:bg-nt-bg3 hover:text-gray-600 dark:hover:text-nt-text transition-colors"
+                  aria-label="Record voice message"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
                 >
                   <Mic size={16} />
                 </button>
@@ -430,16 +437,20 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
                 )}
                 {input.length > 0 && (
                   <button
+                    type="button"
                     onClick={clearAll}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/20"
+                    aria-label="Clear message"
                   >
                     <X size={16} />
                   </button>
                 )}
                 <button
+                  type="button"
                   onClick={() => doSend(input)}
                   disabled={!canSend}
-                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all shadow-sm ${canSend ? 'bg-blue-600 dark:bg-nt-teal text-white dark:text-nt-bg hover:bg-blue-700 dark:hover:bg-[#50c2b7] active:scale-95' : 'bg-gray-200 dark:bg-nt-bg3 text-gray-400 dark:text-nt-faint cursor-not-allowed'}`}
+                  className={`flex min-h-11 items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-colors shadow-sm ${canSend ? 'bg-[var(--brand)] text-white hover:brightness-95' : 'cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-muted)]'}`}
+                  aria-label="Send message"
                 >
                   <Send size={14} />
                   <span className="hidden sm:inline">Send</span>
@@ -450,7 +461,7 @@ const MessageInput = ({ onAnalyzeTone, onSmartReplies, recentMessages = [] }) =>
         )}
       </div>
 
-      <p className="text-center text-xs mt-2 text-gray-400 dark:text-nt-muted">
+      <p className="mt-2 hidden text-center text-xs text-[var(--text-muted)] sm:block">
         {isRecording ? 'Click Check to send voice note · Trash to discard' : isCodeMode ? '✦ AI will auto-explain your code for everyone in the room' : 'Enter to send · Shift+Enter for new line'}
       </p>
     </div>

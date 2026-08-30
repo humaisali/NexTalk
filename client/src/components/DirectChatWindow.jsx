@@ -273,13 +273,13 @@ const DirectChatWindow = ({ conversation, messages = [], typingUser, onSendMessa
   });
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-gray-50/50 dark:bg-nt-bg1">
+    <div className="flex flex-1 flex-col overflow-hidden bg-[var(--surface-subtle)]">
 
       {/* Messages */}
       <div ref={containerRef} onScroll={() => {
         const el = containerRef.current;
         if (el) setShowScrollBtn(el.scrollHeight - el.scrollTop - el.clientHeight > 100);
-      }} className="flex-1 overflow-y-auto px-6 py-5">
+      }} role="log" aria-live="polite" aria-label={`${other?.username || 'Direct'} messages`} className="flex-1 overflow-y-auto px-3 py-5 sm:px-6">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center select-none animate-fade-in">
             <div className="w-20 h-20 rounded-2xl flex items-center justify-center bg-blue-50 dark:bg-nt-bg2 text-blue-500 dark:text-nt-teal shadow-sm">
@@ -429,24 +429,24 @@ const DirectChatWindow = ({ conversation, messages = [], typingUser, onSendMessa
       </div>
 
       {showScrollBtn && (
-        <button onClick={() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); setShowScrollBtn(false); }}
-          className="absolute bottom-24 right-5 w-9 h-9 rounded-full flex items-center justify-center shadow-md bg-white border border-gray-200 text-gray-600 hover:scale-105 transition-transform">
+        <button type="button" onClick={() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); setShowScrollBtn(false); }}
+          className="absolute bottom-24 right-4 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] shadow-md transition-colors hover:bg-[var(--surface-muted)] sm:right-5" aria-label="Scroll to latest message">
           <ArrowDown size={16} />
         </button>
       )}
 
       {/* Input */}
-      <div className="px-6 py-4 bg-white dark:bg-nt-bg1 border-t border-gray-100 dark:border-nt-border flex-shrink-0">
+      <div className="flex-shrink-0 border-t border-[var(--border)] bg-[var(--surface)] px-3 py-3 sm:px-6 sm:py-4">
         
         {/* Error message */}
         {sendError && (
-          <p className="text-xs px-1 mb-2 flex items-center gap-1.5 text-red-500">
+          <p role="alert" className="mb-2 flex items-center gap-1.5 px-1 text-xs text-red-500">
             <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
             {sendError}
           </p>
         )}
 
-        <div className={`rounded-xl border bg-gray-50 dark:bg-nt-bg2 transition-all focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-[#60D4C8]/10 focus-within:border-blue-300 dark:focus-within:border-[#60D4C8] border-gray-200 dark:border-nt-border`}>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] transition focus-within:border-[var(--brand)] focus-within:ring-4 focus-within:ring-[var(--focus-ring)]">
           
           {/* Hidden file input */}
           <input ref={fileInputRef} type="file" onChange={handleFileAttach} className="hidden" />
@@ -460,16 +460,18 @@ const DirectChatWindow = ({ conversation, messages = [], typingUser, onSendMessa
               </div>
               <div className="flex items-center gap-2">
                 <button 
+                  type="button"
                   onClick={() => stopRecording(false)} 
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-                  title="Cancel Recording"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/20"
+                  aria-label="Cancel recording"
                 >
                   <Trash2 size={16} />
                 </button>
                 <button 
+                  type="button"
                   onClick={() => stopRecording(true)} 
-                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-green-500 text-white hover:bg-green-600 active:scale-95 transition-all shadow-sm"
-                  title="Send Recording"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm transition-colors hover:bg-emerald-700"
+                  aria-label="Send recording"
                 >
                   <Check size={16} />
                 </button>
@@ -492,7 +494,8 @@ const DirectChatWindow = ({ conversation, messages = [], typingUser, onSendMessa
                   onChange={handleChange} 
                   onKeyDown={handleKeyDown}
                   placeholder={`Message ${other?.username || ''}…`}
-                  className="w-full bg-transparent text-sm resize-none outline-none leading-relaxed min-h-[24px] max-h-32 text-gray-800 dark:text-nt-text placeholder-gray-400 dark:placeholder-nt-faint py-1"
+                  aria-label={`Message ${other?.username || 'conversation'}`}
+                  className="min-h-[24px] max-h-32 w-full resize-none bg-transparent py-1 text-sm leading-relaxed text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
                 />
               </div>
 
@@ -501,18 +504,20 @@ const DirectChatWindow = ({ conversation, messages = [], typingUser, onSendMessa
                 <div className="flex items-center gap-1">
                   {/* File Attachment button */}
                   <button
+                    type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    title="Attach File"
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 dark:text-nt-muted hover:bg-gray-100 dark:hover:bg-nt-bg3 hover:text-gray-600 dark:hover:text-nt-text transition-colors"
+                    aria-label="Attach file"
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
                   >
                     <Paperclip size={16} />
                   </button>
 
                   {/* Voice Record button */}
                   <button
+                    type="button"
                     onClick={startRecording}
-                    title="Record Voice Message"
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 dark:text-nt-muted hover:bg-gray-100 dark:hover:bg-nt-bg3 hover:text-gray-600 dark:hover:text-nt-text transition-colors"
+                    aria-label="Record voice message"
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
                   >
                     <Mic size={16} />
                   </button>
@@ -521,16 +526,20 @@ const DirectChatWindow = ({ conversation, messages = [], typingUser, onSendMessa
                 <div className="flex items-center gap-3">
                   {input.length > 0 && (
                     <button
+                      type="button"
                       onClick={() => setInput('')}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/20"
+                      aria-label="Clear message"
                     >
                       <X size={16} />
                     </button>
                   )}
                   <button 
+                    type="button"
                     onClick={handleSend}
                     disabled={!input.trim() || input.length > MAX_CHARS}
-                    className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${input.trim() && input.length <= MAX_CHARS ? 'bg-blue-600 dark:bg-nt-teal text-white dark:text-nt-bg hover:bg-blue-700 dark:hover:bg-[#50c2b7] active:scale-95 shadow-sm' : 'bg-gray-200 dark:bg-nt-bg3 text-gray-400 dark:text-nt-faint cursor-not-allowed'}`}
+                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg transition-colors ${input.trim() && input.length <= MAX_CHARS ? 'bg-[var(--brand)] text-white shadow-sm hover:brightness-95' : 'cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-muted)]'}`}
+                    aria-label="Send message"
                   >
                     <Send size={14} />
                   </button>
@@ -539,7 +548,7 @@ const DirectChatWindow = ({ conversation, messages = [], typingUser, onSendMessa
             </>
           )}
         </div>
-        <p className="text-center text-xs mt-2 text-gray-400 dark:text-nt-muted">
+        <p className="mt-2 hidden text-center text-xs text-[var(--text-muted)] sm:block">
           {isRecording ? 'Click Check to send voice note · Trash to discard' : `Private · Only you and ${other?.username || ''} can see this`}
         </p>
       </div>
